@@ -34,7 +34,8 @@ static const char *const cat_icon[NCAT] = { "MUSIC", "FM", "REC", "GAMES", "TOOL
 /* modules with a fixed place; anything else on the disk goes to TOOLS */
 static const struct { char name[9]; uint8_t cat; } known[] = {
     { "MUSIC", CAT_MUSIC }, { "FM", CAT_FM }, { "REC", CAT_REC }, { "USB", CAT_USB }, { "SETTINGS", CAT_SETTINGS },
-    { "SNAKE", CAT_GAMES }, { "SHELL", CAT_HIDDEN }, { "MP3PLAY", CAT_HIDDEN },
+    { "SNAKE", CAT_GAMES }, { "HOPBOT", CAT_GAMES }, { "KLONDIKE", CAT_GAMES },
+    { "SPIDER", CAT_GAMES }, { "MINES", CAT_GAMES }, { "SHELL", CAT_HIDDEN }, { "MP3PLAY", CAT_HIDDEN },
     { "DECPLAY", CAT_HIDDEN }, { "DECINFO", CAT_HIDDEN }, { "RECRUN", CAT_HIDDEN } };
 
 #define MAXMOD 24

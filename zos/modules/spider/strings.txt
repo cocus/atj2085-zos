@@ -1,0 +1,25 @@
+# ID | English | Spanish   (20 chars max)
+TITLE  | SPIDER               | SPIDER
+SUIT1  | < 1 SUIT >           | < 1 PALO >
+SUIT2  | < 2 SUITS >          | < 2 PALOS >
+SUIT4  | < 4 SUITS >          | < 4 PALOS >
+H_MOVE | << >>  MOVE          | << >>  MOVER
+H_PLAY | PLAY   AUTO MOVE     | PLAY   MOVER AUTO
+H_VOL1 | VOL    PICK UP, MORE | VOL    TOMAR, MAS
+H_VOL2 | PLAY/VOL  PUT DOWN   | PLAY/VOL  SOLTAR
+H_DEAL | DEAL   TOP RIGHT BOX | DAR    CAJA ARRIBA
+H_MENU | MENU   PAUSE         | MENU   PAUSA
+START  | PLAY:START MENU:EXIT | PLAY:JUGAR MENU:SALE
+DEAL   | DEAL                 | DAR
+DONE   | DONE                 | HECHOS
+FILL   | FILL EVERY COLUMN    | LLENA CADA COLUMNA
+PAUSE  | PAUSE                | PAUSA
+CONT   | PLAY: CONTINUE       | PLAY: SEGUIR
+NEW    | VOL: NEW GAME        | VOL: NUEVO JUEGO
+QUIT   | MENU: QUIT           | MENU: SALIR
+WIN    | YOU WIN!             | GANASTE!
+TIME   | TIME                 | TIEMPO
+BEST   | BEST                 | RECORD
+MOVES  | MOVES                | JUGADAS
+AGAIN  | PLAY: NEW GAME       | PLAY: OTRO JUEGO
+WON    | WON                  | GANADAS

@@ -1,0 +1,20 @@
+# ID | English | Spanish   (20 chars max)
+TITLE  | KLONDIKE             | KLONDIKE
+DRAW1  | < DRAW 1 CARD >      | < ROBAR 1 CARTA >
+DRAW3  | < DRAW 3 CARDS >     | < ROBAR 3 CARTAS >
+H_MOVE | << >>  MOVE          | << >>  MOVER
+H_PLAY | PLAY   AUTO MOVE     | PLAY   MOVER AUTO
+H_VOL1 | VOL    PICK UP, MORE | VOL    TOMAR, MAS
+H_VOL2 | PLAY/VOL  PUT DOWN   | PLAY/VOL  SOLTAR
+H_MENU | MENU   PAUSE         | MENU   PAUSA
+START  | PLAY:START MENU:EXIT | PLAY:JUGAR MENU:SALE
+PAUSE  | PAUSE                | PAUSA
+CONT   | PLAY: CONTINUE       | PLAY: SEGUIR
+NEW    | VOL: NEW GAME        | VOL: NUEVO JUEGO
+QUIT   | MENU: QUIT           | MENU: SALIR
+WIN    | YOU WIN!             | GANASTE!
+TIME   | TIME                 | TIEMPO
+BEST   | BEST                 | RECORD
+MOVES  | MOVES                | JUGADAS
+AGAIN  | PLAY: NEW GAME       | PLAY: OTRO JUEGO
+WON    | WON                  | GANADAS

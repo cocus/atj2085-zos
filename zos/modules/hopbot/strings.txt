@@ -1,0 +1,17 @@
+# ID | English | Spanish   (20 chars max)
+TITLE  | HOPBOT               | HOPBOT
+H_JUMP | PLAY / <<   JUMP     | PLAY / <<   SALTA
+H_HIGH | HOLD IT: JUMP HIGHER | MANTENER: MAS ALTO
+H_DUCK | >>   DUCK            | >>   AGACHARSE
+H_DRON | DUCK UNDER DRONES    | AGACHATE: DRONES
+H_MENU | MENU / VOL   PAUSE   | MENU / VOL   PAUSA
+START  | PLAY:START MENU:EXIT | PLAY:JUGAR MENU:SALE
+HI     | HI                   | MAX
+PAUSE  | PAUSE                | PAUSA
+CONT   | PLAY: CONTINUE       | PLAY: SEGUIR
+QUIT   | MENU: QUIT           | MENU: SALIR
+OUCH   | CRASH!               | CHOQUE!
+SCORE  | SCORE                | PUNTOS
+BEST   | BEST                 | RECORD
+NEWBEST| NEW RECORD!          | NUEVO RECORD!
+AGAIN  | PLAY: AGAIN          | PLAY: OTRA VEZ

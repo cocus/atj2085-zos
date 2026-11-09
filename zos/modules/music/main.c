@@ -21,8 +21,9 @@
 
 #define MAXE 48
 #define ROWS 9
-#define NAMEW 19                                   /* 12 + 19 x 6 px = 126 */
-typedef struct { uint32_t clus, size; uint8_t dir; char name[NAMEW + 1]; } ent_t;   /* dir: FAT_ATTR_DIR or TRK_* */
+#define NAMEW 19                                   /* shown: 12 + 19 x 6 px = 126 */
+#define NAMEMAX FAT_LFN_MAX                        /* kept: longer names scroll on the selected row */
+typedef struct { uint32_t clus, size; uint8_t dir; char name[NAMEMAX + 1]; } ent_t;   /* dir: FAT_ATTR_DIR or TRK_* */
 static ent_t ents[MAXE];
 static uint8_t n;
 static fat_dirent_t de;
@@ -62,7 +63,7 @@ static void load(void)
         ents[n].clus = de.clus;
         ents[n].size = de.size;
         ents[n].dir = k;
-        upname(ents[n].name, &de, NAMEW);
+        upname(ents[n].name, &de, NAMEMAX);
         n++;
     }
 }
@@ -70,19 +71,84 @@ static void load(void)
 #define TOP_Y 17                                   /* below the skin title bar */
 #define ROW_H 11
 
+/* type icons, 10x9, compiled in (no disk reads per row): bit 9 = left column */
+enum { TY_DIR, TY_MP3, TY_OGG, TY_WAV };
+static const uint16_t ty_bits[4][9] = {
+    { 0x3C0, 0x3FF, 0x3FF, 0x201, 0x3FF, 0x3FF, 0x3FF, 0x3FF, 0x000 },   /* folder */
+    { 0x03F, 0x03F, 0x021, 0x021, 0x021, 0x0E7, 0x1EF, 0x1EF, 0x0C6 },   /* beamed notes */
+    { 0x078, 0x1FE, 0x1FE, 0x3CF, 0x3CF, 0x1FE, 0x1FE, 0x078, 0x000 },   /* disc */
+    { 0x010, 0x050, 0x054, 0x155, 0x3FF, 0x155, 0x054, 0x050, 0x010 } }; /* waveform */
+static const uint16_t ty_col[4] = { RGB(240, 190, 60), RGB(90, 220, 110), RGB(255, 140, 40), RGB(80, 200, 255) };
+
+static uint8_t type_of(uint8_t i)
+{
+    uint8_t d = ents[i].dir;
+    if (d == FAT_ATTR_DIR) return TY_DIR;
+    if ((d & TRK_KIND) == TRK_OGG) return TY_OGG;
+    if ((d & TRK_KIND) == TRK_WAV) return TY_WAV;
+    return TY_MP3;
+}
+
+static void type_icon(uint8_t t, uint8_t x, uint8_t y)   /* set pixels only, one fill per run */
+{
+    uint8_t r, c, c0;
+    uint16_t v;
+    for (r = 0; r < 9; r++) {
+        v = ty_bits[t][r];
+        for (c = 0; c < 10; ) {
+            if (!(v & (0x200 >> c))) { c++; continue; }
+            for (c0 = c; c < 10 && (v & (0x200 >> c)); c++) ;
+            gfx_fill(x + c0, y + r, c - c0, 1, ty_col[t]);
+        }
+    }
+}
+
+/* horizontal scroll of the selected row's name (as MP3PLAY's title: one step per 300 ms, a pause
+ * at both ends); only the text part of that row is redrawn */
+#define SCR_TICKS 30
+#define SCR_PAUSE 4
+static uint8_t soff, spause;
+static uint16_t selbar[ROW_H];                     /* SELBAR.ZI colour of each row (skinlib.c) */
+static uint8_t selbar_ok;
+uint8_t selbar_column(uint16_t *col, uint8_t h);   /* skinlib.c */
+
+static void name_text(uint8_t i, uint8_t y, uint8_t s)
+{
+    char b[NAMEW + 1];
+    uint8_t r;
+    memcpy(b, ents[i].name + (s ? soff : 0), NAMEW);
+    b[NAMEW] = 0;
+    if (s && selbar_ok) {                          /* the bar's gradient under the text, then the text */
+        for (r = 0; r < ROW_H; r++) gfx_fill(12, y + r, LCD_W - 12, 1, selbar[r]);
+        skin_text(12, y + 2, b, sk.sel_text);
+    } else {
+        r = (uint8_t)strlen(b);
+        gfx_text(12, y + 2, b, 1, s ? sk.sel_text : sk.fg, s ? sk.sel_bot : sk.bg);
+        gfx_fill(12 + r * FONT_W, y + 2, (NAMEW - r) * FONT_W + 2, 8, s ? sk.sel_bot : sk.bg);
+    }
+}
+
 static void row(uint8_t i)
 {
     uint8_t y = TOP_Y + (i - S->top) * ROW_H, s = i == S->sel;
-    uint8_t icon = ents[i].dir == FAT_ATTR_DIR ? ICON_FOLDER : ICON_AUDIO;
-    if (s && skin_draw("SELBAR  ZI ", 0, y, 0)) {         /* gradient bar, transparent text */
-        skin_draw("ICONSEL ZI ", 1, y + 1, icon);
-        skin_text(12, y + 2, ents[i].name, sk.sel_text);
-        return;
-    }
-    gfx_fill(0, y, LCD_W, ROW_H, s ? sk.sel_bot : sk.bg);
-    if (!skin_draw("ICONS   ZI ", 1, y + 1, icon) && ents[i].dir == FAT_ATTR_DIR)
-        gfx_text(1, y + 2, ">", 1, sk.sel_bot, sk.bg);
-    gfx_text(12, y + 2, ents[i].name, 1, s ? sk.sel_text : sk.fg, s ? sk.sel_bot : sk.bg);
+    if (s) { soff = 0; spause = SCR_PAUSE; }
+    if (!(s && selbar_ok && skin_draw("SELBAR  ZI ", 0, y, 0)))
+        gfx_fill(0, y, LCD_W, ROW_H, s ? sk.sel_bot : sk.bg);
+    type_icon(type_of(i), 1, y + 1);
+    name_text(i, y, s);
+}
+
+static uint8_t scroll(void)                       /* 1 = the selected name is longer than the row */
+{
+    uint8_t len;
+    if (!n) return 0;
+    len = (uint8_t)strlen(ents[S->sel].name);
+    if (len <= NAMEW) return 0;
+    if (spause) { spause--; return 1; }
+    if (++soff + NAMEW > len) { soff = 0; spause = SCR_PAUSE; }
+    else if (soff + NAMEW == len) spause = SCR_PAUSE;
+    name_text(S->sel, TOP_Y + (S->sel - S->top) * ROW_H, 1);
+    return 1;
 }
 
 static void list(void)
@@ -155,11 +221,12 @@ uint16_t mod_main(void)
         cfg_save();
         if (MOD_POWER_REQ) { S->magic = 0; return 0; }  /* player left for power-off: on to SHELL */
     }
+    selbar_ok = selbar_column(selbar, ROW_H);
     load();
     if (S->sel >= n) S->sel = S->top = 0;
     list();
     for (;;) {
-        ev_wait(&e, 0);
+        if (!ev_wait(&e, n && strlen(ents[S->sel].name) > NAMEW ? SCR_TICKS : 0)) { scroll(); continue; }
         if (e.type == EV_KEY_DOWN) beep();             /* key beep (SETTINGS) */
         if (e.type == EV_POWER) { MOD_POWER_REQ = 1; break; }
         if (e.type != EV_KEY_DOWN && e.type != EV_KEY_REPEAT) continue;

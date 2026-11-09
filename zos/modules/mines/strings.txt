@@ -1,0 +1,23 @@
+# ID | English | Spanish   (20 chars max)
+TITLE  | MINES                | MINAS
+SIZE0  | < 9X9  10 MINES >    | < 9X9  10 MINAS >
+SIZE1  | < 13X11  22 MINES >  | < 13X11  22 MINAS >
+SIZE2  | < 16X11  35 MINES >  | < 16X11  35 MINAS >
+H_MOVE | << >>  MOVE, WRAPS   | << >> MOVER (CICLO)
+H_PLAY | PLAY   OPEN          | PLAY   ABRIR
+H_FLAG | VOL/HOLD PLAY: FLAG  | VOL/PLAY LARGO:MARCA
+H_AXIS | HOLD VOL: ROW/COLUMN | VOL LARGO: FILA/COL
+H_MENU | MENU   PAUSE         | MENU   PAUSA
+START  | PLAY:START MENU:EXIT | PLAY:JUGAR MENU:SALE
+FOOT   | PLAY:OPEN VOL:FLAG   | PLAY:ABRE VOL:MARCA
+ROW    | <> ROW               | <> FILA
+COL    | <> COLUMN            | <> COLUMNA
+PAUSE  | PAUSE                | PAUSA
+CONT   | PLAY: CONTINUE       | PLAY: SEGUIR
+NEW    | VOL: NEW GAME        | VOL: NUEVO JUEGO
+QUIT   | MENU: QUIT           | MENU: SALIR
+WIN    | CLEARED!             | DESPEJADO!
+BOOM   | BOOM!                | BOOM!
+TIME   | TIME                 | TIEMPO
+BEST   | BEST                 | RECORD
+AGAIN  | PLAY: AGAIN          | PLAY: OTRA VEZ
