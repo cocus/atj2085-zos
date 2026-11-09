@@ -37,7 +37,8 @@ to the script; rebuild it from `stub/zosboot.s` with `python build_stub.py` (nee
 `sdasz80`/`sdldz80`).
 
 Installing zos on the player (with the stock firmware's USB disk): copy `ZOS.AP`, the `*.ZM`
-modules, `MP3DEC.DSP`, `ZOS.CFG` and the `SKIN` folder to the root of the disk, then unplug and
+modules, the DSP programs (`MP3DEC.DSP`, `OGGDEC.DSP`, `PCMDEC.DSP`, `ADENCM.DSP`, taken from your
+own firmware by `zos/build.py`), `ZOS.CFG` and the `SKIN` folder to the root of the disk, then unplug and
 power on. To go back to stock without reflashing, delete `ZOS.AP` (or rename it). To go back to
 the original firmware, flash the original `.fw` again (or the output of `--unpatch`).
 
