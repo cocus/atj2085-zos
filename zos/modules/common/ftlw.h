@@ -41,4 +41,11 @@ uint8_t ftlw_sync(uint32_t lba, uint16_t n);  /* flush if [lba, lba+n) touches t
 uint8_t ftlw_pending(void);                   /* 1 = a unit is open (data not yet in place) */
 uint8_t ftlw_error(void);                     /* sticky error code, 0 = none */
 void    ftlw_reset(void);                     /* clear the sticky error */
+/* Only with FTLW_FW = 1 defined before the .include (FIRMWARE module): sector of FWIMAGE copy A
+ * (hal_fw_read numbering), < FTLW_FW_A_SECTORS, else FTLW_ERANGE. Copy B is never reachable. */
+#define FTLW_FW_A_SECTORS 0x4000U
+uint8_t ftlw_fwwrite(uint32_t sector, const void *buf512);
+/* Only with FTLW_IDLE = 1: the module provides this; called in every NAND busy-wait poll with
+ * CE1 selected and interrupts off (ports and RAM below 0x8000 only). */
+void    ftlw_idle(void);
 #endif

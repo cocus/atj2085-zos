@@ -227,6 +227,8 @@
 #define MIX_SRC_FM      0x01
 #define MIX_SRC_LINE    0x02
 #define MIX_RATE_MASK   0xE0    /*   ADC rate, 0x00 = 8 kHz */
+#define MIX_RATE_16     0x40    /*   16 kHz (ogg_rec_rds.md 2.3; x 0.91875 with PLL_AUDIO_441) */
+#define MIX_RATE_24     0x60    /*   24 kHz, = 22.05 kHz with PLL_AUDIO_441 */
 #define MIX_RATE_32     0x80    /*   32 kHz */
 #define P_ADCDATA       0x9A    /* ADC FIFO: R hi, R lo [, L hi, L lo] */
 #define P_ADCBUS        0x9B    /* 0 = 16 bit */

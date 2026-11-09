@@ -93,6 +93,30 @@ Leaving zos (REBOOT, or a crash -> watchdog reset) restarts from BROM.
 1. zos misbehaves -> it is only files on the FAT disk: fix them over USB (zos USB mode, or the stock one).
 2. Native firmware: hold **MENU or VOL** from power-on (device-verified) -> stock firmware; from there
    s1res can flash `my-ximpro.fw` back (normal ADFU, writes FWIMAGE copy A only).
-3. FWIMAGE broken but BREC fine: BREC shows the hourglass and stops (fallback to copy B not analysed).
+3. FWIMAGE copy A broken but BREC fine: **BREC repairs A from B by itself** (see 4 below).
+   Both copies broken: BREC jumps to 0x2063 = the mask ROM's USB recovery (ADFU) -> s1res / s1clone.
+
+## 4. What BREC does with the two FWIMAGE copies (BREC 0x0600, emulator-verified)
+
+```
+0x0606  verify(A at fw sector 0)        full check: magic, header u16 sum, dir u32 sum, every
+        |                               non-.$$$/.RES file's u32 sum (0x06DB -> 0x0875 -> 0x091F)
+        +- A ok:  verify(B at 0x4000) in light mode (magic only), compare header +4..+7 and the
+        |         dir sum (+0x10) with A's: equal -> boot; different -> erase VM area (fw sector
+        |         0x8000.., 128 sectors = stock settings) and copy A -> B (0x0978), re-verify (0x0606)
+        +- A bad: verify(B) FULLY: ok -> copy B -> A (0x0978, 0x4000 sectors), re-verify, boot
+                                    bad -> 0x2063: BROM ADFU recovery code copied to RAM, USB recovery
+```
+Emulator runs (real BREC from the dump, `atj2085emu --nand`, overlays): A with a flipped byte,
+A = half new / half old image, A cut by a power loss during a zos FIRMWARE update (inside a unit,
+right after a unit's old block erase = mid copy-back, during unit 0 = header/directory) -> each
+time B is verified, copied over A (~139 M T-states = ~5.7 s more hourglass) and the stock
+firmware boots with A = B = the old image; the FTL mount also resolved the interrupted unit close
+(two units with the same logical number; afterwards 0 spare/table mismatches). A valid new A ->
+A copied to B on the next boot (~140 M T). A and B both bad -> 0x2063.
+Consequence for updates (zos FIRMWARE module, s1res): write copy A only and never B; an
+interrupted write is undone by the next boot. Residual risk (also stock): a power loss during
+BREC's own A -> B copy leaves B with A's header but partial data; since BREC only checks B's
+header while A is valid, B stays silently bad until A also breaks (then: ROM recovery).
 4. BREC unreadable: the BROM enters USB recovery by itself -> s1clone / vendor tool with the dump
    (`readback-my-ximpro.s1clone` holds the whole NAND).

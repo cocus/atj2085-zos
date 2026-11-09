@@ -5,13 +5,15 @@
  * on a 36 dB log scale, 0 dBFS = VU_W px. The bar takes one colour by zone: blue below -12 dB,
  * yellow up to -4.5 dB, red above. 16-bit maths only (small: MP3PLAY is ZRAM2-bound).
  *   vu_adc_on(src)  vu_adc_off()   vu_poll() often   vu_level() once per frame -> 0..VU_W
- *   vu_bar(x, y, px, off_colour)   rises at once, falls 4 px per call */
+ *   vu_bar(x, y, px, off_colour)   rises at once, falls 4 px per call
+ * VU_PX_ONLY defined before the #include: only vu_px() (REC/RECRUN capture themselves). */
 #include <stdint.h>
 #include "../../hal/hal.h"
 #include "../../apps/theme.h"
 #include "regs.h"
 #include "vu.h"
 
+#ifndef VU_PX_ONLY                              /* (a module with its own capture: vu_px() only) */
 SFR(VU_ADCDATA, P_ADCDATA);
 SFR(VU_ADCBUS, P_ADCBUS);
 SFR(VU_ADCPD2, P_ADCPD2);
@@ -61,6 +63,8 @@ void vu_poll(void)
     }
 }
 
+#endif
+
 /* 0..32767 -> px: 1.5 dB steps (4 per bit), 0 dBFS (~61) = VU_W, 36 dB range */
 uint8_t vu_px(uint16_t v)
 {
@@ -74,6 +78,7 @@ uint8_t vu_px(uint16_t v)
     return l > VU_W ? VU_W : l;
 }
 
+#ifndef VU_PX_ONLY
 uint8_t vu_level(void)
 {
     uint16_t avg = vcnt ? (vsum / vcnt) << 5 : 0;
@@ -88,3 +93,4 @@ void vu_bar(uint8_t x, uint8_t y, uint8_t n, uint16_t off)
     gfx_fill(x, y, n, VU_H, n < VU_W * 2 / 3 ? VU_C_LOW : n < VU_W * 26 / 30 ? VU_C_MID : VU_C_HIGH);
     gfx_fill(x + n, y, VU_W - n, VU_H, off);              /* gfx_fill ignores w = 0 */
 }
+#endif

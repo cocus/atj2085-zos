@@ -1,0 +1,16 @@
+# ID | English | Spanish   (20 chars max)
+TITLE     | VOICE RECORDER       | GRABADORA
+RATE      | RATE                 | MUESTREO
+TIME      | TIME                 | TIEMPO
+FREE      | FREE                 | LIBRE
+DROPS     | LOST                 | PERDIDAS
+READY     | READY                | LISTO
+PREP      | PREPARING...         | PREPARANDO...
+SAVING    | SAVING...            | GUARDANDO...
+SAVED     | SAVED                | GUARDADO
+FULLSAVED | DISK FULL - SAVED    | DISCO LLENO-GUARDADO
+FT_IDLE   | << >> RATE  PLAY REC | << >> HZ  PLAY GRABA
+NODSP     | NO ADENCM.DSP        | FALTA ADENCM.DSP
+NOROOM    | DISK FULL            | DISCO LLENO
+ERROR     | ERROR                | ERROR
+NOHDR     | NO WAV HEADER        | SIN CABECERA WAV

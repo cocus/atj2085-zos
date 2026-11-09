@@ -1,0 +1,3 @@
+# ID | English | Spanish   (20 chars max)
+REC    | RECORDING            | GRABANDO
+FT_REC | PLAY / MENU: STOP    | PLAY / MENU: PARAR

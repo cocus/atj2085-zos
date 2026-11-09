@@ -14,8 +14,17 @@
 ;; wait 0x39FB; select/release as BREC 0x3D3A/0x3D5F (interrupts off while CE1 is selected).
 ;; Entry points: SDCC __sdcccall(1) (8-bit arg in A, 16-bit in HL, 32-bit in HL:DE = high:low,
 ;; further args on the stack, popped by the callee; result in A; IX preserved).
+;; Options (define before the .include):
+;;   FTLW_IDLE = 1  call void ftlw_idle(void) (module C code) in every NAND busy-wait poll, with
+;;                  CE1 selected and interrupts off: it may touch ports and RAM below 0x8000 (e.g.
+;;                  drain the ADC FIFO, serve the DSP), never the external window. REC uses it.
+;;   FTLW_FW = 1    also assemble ftlw_fwwrite(): FWIMAGE copy A (firmware logical units 0..0x1F,
+;;                  zone 0) for the FIRMWARE update. Nothing else can reach units 0..0x40.
 	.include "regs.inc"
 	.globl	_nand_read, _ftl_tbl, _hal_watchdog
+.ifdef FTLW_IDLE
+	.globl	_ftlw_idle
+.endif
 
 ;; ftlw.h result codes
 FTLW_OK		= 0
@@ -30,13 +39,14 @@ UPZ		= 2048		; physical units per zone
 LUNITS		= 0x7B0		; logical units per zone
 TEMP_ENTRY	= 0x7FD		; table entry of the zone's temp unit
 FW_UNITS	= 0x40		; logical units 0..0x3F firmware, 0x40 VM, FAT volume from 0x41
+FW_A_SECTORS	= 0x4000	; FWIMAGE copy A = firmware units 0..0x1F (B = 0x20..0x3F: BREC's)
 SUPERPAGES	= 128		; per unit
 SP_MARK		= 0x55		; spare byte 14 of every written sector (UD 0x3884)
 REQ_BUF		= 5		; nand_req_t: c0 c1 r0 r1 r2, u16 buf, u16 len
 REQ_LEN		= 7
 
 	.area	_DATA
-o_lu:	.ds	2		; open logical unit (global), 0 = none
+o_lu:	.ds	2		; open logical unit (global) + 1 ("key"), 0 = none
 o_pu:	.ds	2		; its physical unit (global)
 o_tu:	.ds	2		; the zone's temp unit (global)
 o_sp:	.ds	1		; superpage being filled in the temp unit
@@ -53,6 +63,27 @@ nw_s:	.ds	3		; IFF, P_EMLO, P_EMHI before the selection
 nw_c:	.ds	2		; random data input column
 
 	.area	_CODE
+;; IDLE: with FTLW_IDLE, call the module hook between the core reads of open() (mapping table,
+;; spares: ~30 k T-states together), all registers kept; otherwise nothing
+	.macro	IDLE
+.ifdef FTLW_IDLE
+	call	idle_keep
+.endif
+	.endm
+.ifdef FTLW_IDLE
+idle_keep:
+	push	af
+	push	bc
+	push	de
+	push	hl
+	call	_ftlw_idle
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ret
+.endif
+
 ;; ---- addresses -----------------------------------------------------------------------------
 ;; nw_a = column 0 of superpage A of unit HL (BREC 0x3F1B):
 ;; row0 = u0 << 7 | sp0 << 6 | sp >> 1, row1 = (u >> 1) & 0xFF, row2 = u >> 9
@@ -97,13 +128,13 @@ allff:
 	inc	a
 	ret
 
-;; logical unit of FAT volume sector HL:DE (needs lba < 2^23: H = 0, L < 0x80) -> HL
+;; key (logical unit + 1) of FAT volume sector HL:DE (needs lba < 2^23: H = 0, L < 0x80) -> HL
 lu_of:
 	ld	h, l
 	ld	l, d
 	srl	h
 	rr	l			; lba >> 9
-	ld	bc, #FW_UNITS + 1
+	ld	bc, #FW_UNITS + 1 + 1
 	add	hl, bc
 	ret
 
@@ -190,7 +221,13 @@ nw_wait:
 	ld	a, #NAND_STATUS
 	out	(P_NAND_CMD), a
 	ld	de, #0x7000		; timeout (as UD 0x39FB)
-2$:	ld	a, (EXT_WINDOW)
+2$:
+.ifdef FTLW_IDLE
+	push	de
+	call	_ftlw_idle		; module hook: ports + RAM < 0x8000 only (see top)
+	pop	de
+.endif
+	ld	a, (EXT_WINDOW)
 	ld	b, a
 	and	a, #NAND_ST_READY
 	jr	nz, 3$
@@ -426,9 +463,11 @@ fail:
 	ld	(o_lu), hl
 	ret
 
-;; open logical unit HL (checks the table entries, the data unit's spare, the temp unit) -> A
+;; open key HL = logical unit + 1 (checks the table entries, the data unit's spare, the temp
+;; unit) -> A
 open:
 	push	hl
+	dec	hl			; logical unit
 	ld	b, #0			; zone
 	ld	de, #LUNITS
 1$:	or	a, a
@@ -441,12 +480,14 @@ open:
 	push	bc
 	ex	de, hl
 	ld	a, b
+	IDLE
 	call	_ftl_tbl		; A = zone, DE = entry -> DE
 	ld	(o_pu), de
 	pop	bc
 	push	bc
 	ld	a, b
 	ld	de, #TEMP_ENTRY
+	IDLE
 	call	_ftl_tbl
 	ld	(o_tu), de
 	pop	bc
@@ -475,6 +516,7 @@ open:
 	ld	(hl), a
 	ld	hl, (o_pu)		; data unit: good block, data unit, logical number L or FFFF
 	xor	a, a
+	IDLE
 	call	rdspare
 	ld	hl, (sw)
 	ld	a, h
@@ -492,11 +534,13 @@ open:
 	jr	nz, 8$
 3$:	ld	hl, (o_tu)		; temp unit erased: first page of both planes
 	xor	a, a
+	IDLE
 	call	rdspare
 	call	allff
 	jr	nz, 7$
 	ld	hl, (o_tu)
 	ld	a, #1
+	IDLE
 	call	rdspare
 	call	allff
 	jr	nz, 7$
@@ -555,13 +599,17 @@ _ftlw_flush::
 _ftlw_write::
 	ld	a, (w_err)
 	or	a, a
-	jp	nz, 97$
+	jp	nz, wr_out
 	ld	a, #FTLW_ERANGE
 	inc	h
 	dec	h
-	jp	nz, 97$
+	jp	nz, wr_out
 	bit	7, l			; lba >= 2^23: unit numbers would wrap
-	jp	nz, 97$
+	jp	nz, wr_out
+	call	lu_of			; never the firmware / VM units (DE kept)
+;; HL = key (logical unit + 1), DE = sector bits 0-15 (bits 0-8 = sector in the unit)
+wr_key:
+	push	hl
 	ld	a, e			; sector in page, its bit
 	and	a, #3
 	ld	(w_col), a
@@ -577,8 +625,7 @@ _ftlw_write::
 	rra
 	srl	a
 	ld	(w_sp), a
-	call	lu_of			; never the firmware / VM units
-	ex	de, hl
+	pop	de			; DE = key
 	ld	hl, (o_lu)
 	or	a, a
 	sbc	hl, de
@@ -597,14 +644,14 @@ _ftlw_write::
 	call	_ftlw_flush
 	pop	hl
 	or	a, a
-	jp	nz, 97$
+	jp	nz, wr_out
 	call	open
 	or	a, a
-	jp	nz, 97$
+	jp	nz, wr_out
 6$:	ld	a, (w_sp)
 	call	fill
 	or	a, a
-	jp	nz, 96$
+	jp	nz, wr_fail
 	ld	hl, (o_tu)
 	ld	a, (w_sp)
 	call	addr
@@ -617,17 +664,44 @@ _ftlw_write::
 	push	bc
 	call	nw_prog
 	or	a, a
-	jp	nz, 96$
+	jp	nz, wr_fail
 	ld	a, (w_bit)
 	ld	hl, #o_mask
 	or	a, (hl)
 	ld	(hl), a
 	xor	a, a
-	jr	97$
-96$:	call	fail_old
-97$:	pop	hl
+	jr	wr_out
+wr_fail:
+	call	fail_old
+wr_out:
+	pop	hl
 	pop	bc
 	jp	(hl)
+
+.ifdef FTLW_FW
+;; uint8_t ftlw_fwwrite(uint32_t sector, const void *buf512)   HL:DE = sector, buf on the stack
+;; FWIMAGE copy A ONLY: sector < FW_A_SECTORS = firmware logical units 0..0x1F of zone 0 (same
+;; FTL algorithm as ftlw_write). Copy B (units 0x20..0x3F) is BREC's: it refreshes it from A at
+;; the next boot. Any other sector -> FTLW_ERANGE, nothing written.
+_ftlw_fwwrite::
+	ld	a, (w_err)
+	or	a, a
+	jp	nz, wr_out
+	ld	a, h
+	or	a, l
+	ld	a, #FTLW_ERANGE
+	jp	nz, wr_out
+	ld	a, d
+	cp	a, #(FW_A_SECTORS >> 8)
+	ld	a, #FTLW_ERANGE
+	jp	nc, wr_out
+	ld	a, d
+	srl	a			; unit = sector >> 9 (0..0x1F)
+	inc	a			; key = unit + 1
+	ld	l, a
+	ld	h, #0
+	jp	wr_key
+.endif
 
 ;; uint8_t ftlw_sync(uint32_t lba, uint16_t n)   HL:DE = lba, n on the stack
 ;; flush if the open unit is one of lu_of(lba) .. lu_of(lba) + n / 512 + 1 (conservative)
