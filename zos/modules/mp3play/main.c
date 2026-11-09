@@ -3,7 +3,10 @@
  * (the target time runs while held, playback restarts there on release), VOL toggles volume mode
  * (<< >> = volume), MENU back to the MUSIC browser. Plays the playlist through. Title/artist from
  * the tags (id3.c). The resume point (file + position) and the volume go to ZCFG for MUSIC to save.
- * EV_POWER (PLAY held 2 s): leaves like MENU with MOD_POWER_REQ set (MUSIC saves, SHELL powers off). */
+ * EV_POWER (PLAY held 2 s): leaves like MENU with MOD_POWER_REQ set (MUSIC saves, SHELL powers off).
+ * Also the screen/keys of DECPLAY (OGG/WAV): modules/decplay/main.c includes this file with its own
+ * PLAYER_* settings and its own backend behind mp3.h. A playlist track of the other player's format
+ * (shared.h TRK_KIND) chains to that player, which starts it. */
 #include <stdint.h>
 #include <string.h>
 #include "../../hal/hal.h"
@@ -17,6 +20,12 @@
 #include "strings.h"
 #include "ui.h"
 
+#ifndef PLAYER_ZM                       /* MP3PLAY (defaults); DECPLAY defines its own */
+#define PLAYER_ZM    MP3PLAY_ZM         /* this module's file (code2_load) */
+#define PLAYER_OTHER DECPLAY_ZM         /* plays the tracks this one does not */
+#define PLAYER_NOT_MINE(idx) ((idx) & TRK_KIND)   /* not an MP3 */
+#define PLAYER_NODSP "NO MP3DEC.DSP"
+#endif
 
 
 #ifdef MP3_DIAG
@@ -69,12 +78,14 @@ void tfmt(char *t, uint16_t s, uint8_t hrs)
     t[3] = '0' + s / 10; t[4] = '0' + s % 10; t[5] = 0;
 }
 
+#ifdef FOOTER_IN_MAIN
 void footer(void)
 {
     fill(0, LCD_H - 10, LCD_W, 10, C_BG);
     txt(4, LCD_H - 9, T(volmode ? S_FT_VOL : S_FT_PLAY), C_DIM);
     vol_shown = 0xFF;
 }
+#endif
 
 /* redraw only what changed, one small piece at a time */
 static void update(void)
@@ -129,6 +140,7 @@ static void update(void)
 }
 
 static fat_dirent_t cur_e;
+static mus_trk_t *cur_trk(void) { return &S->trk[S->cur]; }   /* the playlist track playing */
 static uint8_t restart(uint32_t off)                    /* current track from byte off */
 {
     scrub = 0;
@@ -142,18 +154,19 @@ static uint8_t restart(uint32_t off)                    /* current track from by
 void track_info(void)                                   /* track S->cur: file + tags */
 {
     memset(&cur_e, 0, sizeof cur_e);
-    cur_e.clus = S->trk[S->cur].clus;
-    cur_e.size = S->trk[S->cur].size;
+    cur_e.clus = cur_trk()->clus;
+    cur_e.size = cur_trk()->size;
     mp3_stop();                                        /* id3_read borrows the bitstream buffer */
     loading();
     id3_read(&cur_e, ti, ar);
-    if (!ti[0]) strcpy(ti, S->trk[S->cur].name);
+    if (!ti[0]) strcpy(ti, cur_trk()->name);
     ZCFG->res_file = cur_e.clus;
 }
 
 static uint8_t play(uint32_t off)                       /* track S->cur */
 {
     S->start_paused = 0;                                /* playing from now on */
+    if (PLAYER_NOT_MINE(cur_trk()->idx)) return 0;  /* the main loop chains to the other player */
     track_info();
     return restart(off);
 }
@@ -188,7 +201,7 @@ static uint8_t code2_load(void)
     fat_file_t f;
     fat_dirent_t e;
     fat_root(&f);
-    if (!fat_find(&f, "MP3PLAY ZM ", &e)) return 0;
+    if (!fat_find(&f, PLAYER_ZM, &e)) return 0;
     fat_open(&f, &e);
     return fat_seek(&f, CODE2_FILE_OFFSET) &&
            fat_read(&f, (void *)code2_addr, code2_len) == code2_len;
@@ -214,15 +227,19 @@ uint16_t mod_main(void)
         screen();
         mp3.state = MP3_PAUSED;
     } else if (!play((uint32_t)S->start_pos << RES_POS_SHIFT)) {
-        gfx_text(4, 64, "NO MP3DEC.DSP", 1, C_SEL, C_BG);
+        gfx_text(4, 64, PLAYER_NODSP, 1, C_SEL, C_BG);
         ev_wait(&ev, 200);
         goto out;
     }
     for (;;) {
+        if (PLAYER_NOT_MINE(cur_trk()->idx)) break;   /* next/previous: the other player's format */
         ev_wait(&ev, 50);
         if (ev.type == EV_DSP) mp3_service(ev.code);
         else if (ev.type != EV_SECOND_HALF) key = ev;
         pump();
+#ifdef PLAYER_POLL
+        PLAYER_POLL();
+#endif
         if (mp3.state == MP3_DONE) {                   /* next track */
             if (S->cur + 1 >= S->ntrk) { ZCFG->res_file = 0; break; }   /* list played through */
             S->cur++;
@@ -256,12 +273,13 @@ out:
     S->start_paused = 0;                              /* the browser starts tracks playing */
     ZCFG->vol = mp3.vol;
     S->from_player = 1;
-    mp3_off();
+    held = PLAYER_NOT_MINE(cur_trk()->idx) != 0;   /* (reused) chaining to the other player */
+    mp3_off(held);
     mp3_cpu(0);
     S->vol = mp3.vol;
     S->start_pos = 0;
-    S->sel = S->trk[S->cur].idx;                       /* the browser shows the last track */
+    S->sel = cur_trk()->idx & TRK_IDX;             /* the browser shows the last track */
     if (S->sel >= S->top + 9) S->top = S->sel - 8;
-    memcpy(S->next, "MUSIC   ZM ", 12);
+    memcpy(S->next, held ? PLAYER_OTHER : "MUSIC   ZM ", 12);
     return MOD_CHAIN;
 }

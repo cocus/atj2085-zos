@@ -1,6 +1,7 @@
-/* MUSIC: folder browser of the zos MP3 player (folders + *.MP3, long names).
- * << >> move, PLAY open folder / play, MENU up / exit. Playing hands over to MP3PLAY.ZM (ZRAM2):
- * the playlist (this folder's MP3s from the chosen one on) and the browse state go to the shared
+/* MUSIC: folder browser of the zos music players (folders + *.MP3 *.OGG *.WAV, long names).
+ * << >> move, PLAY open folder / play, MENU up / exit. Playing hands over to MP3PLAY.ZM (MP3) or
+ * DECPLAY.ZM (OGG, WAV; both ZRAM2): the playlist (this folder's tracks from the chosen one on, each
+ * with its format, shared.h TRK_*) and the browse state go to the shared
  * block (shared.h); MP3PLAY chains back here, and the browser comes back where it was.
  * Started from the shell with a resume point in ZCFG (last file played, ZOS.CFG): goes straight
  * back into that file at the saved position; MENU in the player then opens this browser.
@@ -21,7 +22,7 @@
 #define MAXE 48
 #define ROWS 9
 #define NAMEW 19                                   /* 12 + 19 x 6 px = 126 */
-typedef struct { uint32_t clus, size; uint8_t dir; char name[NAMEW + 1]; } ent_t;
+typedef struct { uint32_t clus, size; uint8_t dir; char name[NAMEW + 1]; } ent_t;   /* dir: FAT_ATTR_DIR or TRK_* */
 static ent_t ents[MAXE];
 static uint8_t n;
 static fat_dirent_t de;
@@ -46,14 +47,21 @@ static void upname(char *d, const fat_dirent_t *e, uint8_t w)
 static void load(void)
 {
     fat_file_t d = S->dirs[S->depth];
+    uint8_t k;
     n = 0;
     while (n < MAXE && fat_readdir(&d, &de)) {
         if (de.name[0] == '.' && de.name[1] == ' ') continue;
-        if (!(de.attr & FAT_ATTR_DIR) && memcmp(de.name + 8, "MP3", 3)) continue;
         if (de.attr & 0x0A) continue;                  /* hidden, volume */
+        k = de.attr & FAT_ATTR_DIR;
+        if (!k) {                                      /* playable formats only */
+            if (!memcmp(de.name + 8, "MP3", 3)) k = TRK_MP3 | 1;
+            else if (!memcmp(de.name + 8, "OGG", 3)) k = TRK_OGG;
+            else if (!memcmp(de.name + 8, "WAV", 3)) k = TRK_WAV;
+            else continue;
+        }
         ents[n].clus = de.clus;
         ents[n].size = de.size;
-        ents[n].dir = de.attr & FAT_ATTR_DIR;
+        ents[n].dir = k;
         upname(ents[n].name, &de, NAMEW);
         n++;
     }
@@ -65,14 +73,14 @@ static void load(void)
 static void row(uint8_t i)
 {
     uint8_t y = TOP_Y + (i - S->top) * ROW_H, s = i == S->sel;
-    uint8_t icon = ents[i].dir ? ICON_FOLDER : ICON_AUDIO;
+    uint8_t icon = ents[i].dir == FAT_ATTR_DIR ? ICON_FOLDER : ICON_AUDIO;
     if (s && skin_draw("SELBAR  ZI ", 0, y, 0)) {         /* gradient bar, transparent text */
         skin_draw("ICONSEL ZI ", 1, y + 1, icon);
         skin_text(12, y + 2, ents[i].name, sk.sel_text);
         return;
     }
     gfx_fill(0, y, LCD_W, ROW_H, s ? sk.sel_bot : sk.bg);
-    if (!skin_draw("ICONS   ZI ", 1, y + 1, icon) && ents[i].dir)
+    if (!skin_draw("ICONS   ZI ", 1, y + 1, icon) && ents[i].dir == FAT_ATTR_DIR)
         gfx_text(1, y + 2, ">", 1, sk.sel_bot, sk.bg);
     gfx_text(12, y + 2, ents[i].name, 1, s ? sk.sel_text : sk.fg, s ? sk.sel_bot : sk.bg);
 }
@@ -83,11 +91,11 @@ static void list(void)
     gfx_fill(0, 0, LCD_W, LCD_H, sk.bg);
     skin_title(T(S_TITLE));
     for (i = S->top; i < n && i < S->top + ROWS; i++) row(i);
-    if (!n) gfx_text(4, TOP_Y + 4, "NO MP3 HERE", 1, sk.dim, sk.bg);
+    if (!n) gfx_text(4, TOP_Y + 4, T(S_EMPTY), 1, sk.dim, sk.bg);
     gfx_text(4, LCD_H - 9, T(S_FOOTER), 1, sk.dim, sk.bg);
 }
 
-/* playlist = MP3s of this folder from the selected one on, then chain to the player */
+/* playlist = tracks of this folder from the selected one on, then chain to the first one's player */
 static uint16_t play(void)
 {
     uint8_t i;
@@ -95,15 +103,15 @@ static uint16_t play(void)
     S->ntrk = S->cur = 0;
     ZCFG->res_dir = S->dirs[S->depth].start;
     for (i = S->sel; i < n && S->ntrk < MUS_TRACKS; i++) {
-        if (ents[i].dir) continue;
+        if (ents[i].dir == FAT_ATTR_DIR) continue;
         t = &S->trk[S->ntrk++];
         t->clus = ents[i].clus;
         t->size = ents[i].size;
-        t->idx = i;
+        t->idx = i | (ents[i].dir & TRK_KIND);
         memcpy(t->name, ents[i].name, MUS_NAMEW);
         t->name[MUS_NAMEW] = 0;
     }
-    memcpy(S->next, "MP3PLAY ZM ", 12);
+    memcpy(S->next, S->trk[0].idx & TRK_KIND ? DECPLAY_ZM : MP3PLAY_ZM, 12);
 
     return MOD_CHAIN;
 }
@@ -131,7 +139,7 @@ uint16_t mod_main(void)
                 fat_open(&S->dirs[++S->depth], &de);
             }
             load();
-            for (old = 0; old < n && (ents[old].dir || ents[old].clus != ZCFG->res_file); old++) ;
+            for (old = 0; old < n && (ents[old].dir == FAT_ATTR_DIR || ents[old].clus != ZCFG->res_file); old++) ;
             if (old < n) {
                 S->sel = old;
                 S->top = old >= ROWS ? old - ROWS + 1 : 0;
@@ -142,7 +150,7 @@ uint16_t mod_main(void)
             ZCFG->res_file = 0;                        /* gone: browse from the root */
             S->depth = 0;
         }
-    } else if (S->from_player) {                       /* back from MP3PLAY: keep the resume point */
+    } else if (S->from_player) {                       /* back from a player: keep the resume point */
         S->from_player = 0;
         cfg_save();
         if (MOD_POWER_REQ) { S->magic = 0; return 0; }  /* player left for power-off: on to SHELL */
@@ -169,7 +177,7 @@ uint16_t mod_main(void)
             if (!S->depth) break;
             S->depth--;
         } else if (e.code == KEY_PLAY && n) {
-            if (!ents[S->sel].dir) return play();
+            if (ents[S->sel].dir != FAT_ATTR_DIR) return play();
             if (S->depth >= 5) continue;
             memset(&de, 0, sizeof de);
             de.clus = ents[S->sel].clus;

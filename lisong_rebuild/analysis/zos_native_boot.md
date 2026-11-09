@@ -1,5 +1,9 @@
 # zos native boot: BREC starts zos directly (stock firmware kept, MENU = stock)
 
+> Superseded for public/tester builds by `s1mp3/tools/fwpatch/zospatch.py` (generic .fw patcher:
+> stock by default, zos only when ZOS.AP is on the user disk, core loaded from the disk, USB-cable and
+> MENU/VOL escapes, `--unpatch`). See tools/fwpatch/README.md.
+
 Build: `python lisong_rebuild\homebrew\zkern\build.py [--build-zos]` (PowerShell) ->
 `s1mp3\build_v04\zos-native-v04.fw` (flash this) and `s1mp3\build_v04\zos-native-control-v04.fw`
 (control: the base `my-ximpro.fw` through the same packer, byte-identical to it, md5 3f7a8d29...).

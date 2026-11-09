@@ -23,6 +23,15 @@ uint8_t bar_w, vol_shown, paused_shown, mode_shown;
 void txt(uint8_t x, uint8_t y, const char *s, uint16_t fg) { gfx_text(x, y, s, 1, fg, C_BG); }
 void fill(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint16_t c) { gfx_fill(x, y, w, h, c); }
 
+#ifndef FOOTER_IN_MAIN                 /* section: wherever the player has room */
+void footer(void)
+{
+    fill(0, LCD_H - 10, LCD_W, 10, C_BG);
+    txt(4, LCD_H - 9, T(volmode ? S_FT_VOL : S_FT_PLAY), C_DIM);
+    vol_shown = 0xFF;
+}
+#endif
+
 
 
 /* title / artist: SCR_W chars shown; longer ones scroll together (one step per 300 ms, a pause at

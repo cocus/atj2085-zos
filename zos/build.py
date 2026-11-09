@@ -376,7 +376,7 @@ def main():
 
 
 FW_IMAGE = os.path.join(HERE, '..', 'my-ximpro.fw')    # the player's own firmware (stock DSP programs)
-FW_FILES = ['MP3DEC.DSP']                               # copied next to ZOS.AP (disk root)
+FW_FILES = ['MP3DEC.DSP', 'OGGDEC.DSP', 'PCMDEC.DSP']   # copied next to ZOS.AP (disk root)
 
 
 def fw_extract(out):

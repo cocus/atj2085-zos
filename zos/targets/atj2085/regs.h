@@ -80,8 +80,11 @@
 #define DMA_A3_EXT      0x80    /*   external; bits 4-0 = EMA 28-24 */
 #define DMA_A3_LCD      0x8C    /*   external CE3 */
 #define DMA_A3_NAND     0x84    /*   external CE1 (NAND data cycles: A16/A15 = 0) */
+#define DMA_LANE_IDM_L  0x04    /* ISA/IDA: DSP data RAM lane (DMA_A3_DSPRAM) */
+#define DMA_LANE_IDM_M  0x05
 #define DMA_LANE_IDM_H  0x06
-#define DMA_MODE_WS0    0x00    /* mode: DMA bus wait states (bits 7-6) */
+#define DMA_MODE_WS0    0x00    /* mode: DMA bus wait states (bits 7-6); without DMA_MODE_DSP one byte
+                                     per DSP word, into the IDA lane only (PCMDEC bitstream) */
 #define DMA_MODE_WS1    0x40
 #define DMA_MODE_WS2    0x80
 #define DMA_MODE_WS3    0xC0
@@ -162,6 +165,7 @@
 #define PLL_M48EN       0x20
 #define PLL_MIPS_MASK   0x1C    /*   DSP clock step: 000 12 .. 010 36 .. 011 48 MIPS */
 #define PLL_MIPS_STEP   0x04
+#define PLL_MIPS_12     0x00    /*   stock StartDsp(E=0): PCMDEC */
 #define PLL_MIPS_36     0x08
 #define PLL_MIPS_48     0x0C
 #define PLL_AUDIO_MASK  0x03    /*   11 = 11.2896 MHz (44.1k family), 00 = 12.288 MHz */

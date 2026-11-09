@@ -74,7 +74,7 @@ void    id3_read(const fat_dirent_t *e, char *title, char *artist);   /* id3.c, 
 void    mp3_service(uint8_t req);           /* on EV_DSP: req = event code (ISR read + acked) */
 void    mp3_pause(uint8_t on);
 void    mp3_stop(void);
-void    mp3_off(void);                      /* stop + analog off */
+void    mp3_off(uint8_t keep_pa);           /* fade out + stop; analog off unless keep_pa */
 void    mp3_volume(uint8_t v);              /* 0..31 */
 void    mp3_cpu(uint8_t fast);              /* CPU 48 MHz (1) / 24.576 MHz (0) */
 uint8_t mp3_cpu_fast(void);

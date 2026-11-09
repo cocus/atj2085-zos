@@ -68,8 +68,19 @@ static uint8_t load_dsp(void)
 }
 
 /* ---- 2/3. analog on, DSP reset + clock, load, start ---- */
+/* volume ramp, one step per tick: a DAC reset or PA power change is only silent at volume 0 */
+static void pa_fade(uint8_t to)
+{
+    uint8_t v;
+    while ((v = PAVOL & PAVOL_MASK) != to) {
+        PAVOL = PAVOL + (v < to ? 1 : 0xFF);
+        wait_ticks(1);
+    }
+}
+
 static void analog_on(void)
 {
+    if (PACTL & PA_EN) pa_fade(0);             /* track change: amplifier still on, silence the DAC reset */
     DACCTL = 0;                                /* DAC_Enable(mode 0, 44.1 kHz) */
     DACRATE = DACRATE_441;
     PLLCTL |= PLL_AUDIO_441;
@@ -82,11 +93,7 @@ static void analog_on(void)
         PACTL |= PA_ON;
         wait_ticks(20);                        /* let the amplifier settle */
     }
-    while ((PAVOL & PAVOL_MASK) < mp3.vol) {   /* then fade the volume in */
-        PAVOL++;
-        wait_ticks(1);
-    }
-    PAVOL = (PAVOL & ~PAVOL_MASK) | mp3.vol;
+    pa_fade(mp3.vol);                          /* then fade the volume in */
 }
 
 uint8_t mp3_start(const fat_dirent_t *e, uint32_t off)
@@ -126,13 +133,11 @@ uint8_t mp3_start(const fat_dirent_t *e, uint32_t off)
     return 1;
 }
 
-void mp3_off(void)                             /* PA_Disable */
+void mp3_off(uint8_t keep_pa)                             /* PA_Disable */
 {
+    pa_fade(0);                                /* fade out before the DSP stops / the amplifier goes off */
     mp3_stop();
-    while (PAVOL & PAVOL_MASK) {               /* fade out before the amplifier goes off */
-        PAVOL--;
-        wait_ticks(1);
-    }
+    if (keep_pa) return;                       /* chaining to the other player: no PA power cycle (pop) */
     AICTL |= AICTL_PAOFF;
     PACTL &= ~(PA_DAC | PA_EN);
     MIXER &= ~(MIX_MIC | MIX_LINE | MIX_FM);
