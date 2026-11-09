@@ -11,9 +11,6 @@
 #include "../rec/rechand.h"
 #include "../rec/recui.h"
 #include "rec.h"
-#include "regs.h"
-
-SFR(G_AICTL, P_AICTL);
 
 extern uint8_t ri;
 const uint16_t rate_hz[NRATES] = { 16000, 22050, 32000 };
@@ -28,15 +25,6 @@ void mmss(char *t, uint16_t s)
     t[0] = '0' + m / 10; t[1] = '0' + m % 10; t[2] = ':';
     s %= 60; t[3] = '0' + s / 10; t[4] = '0' + s % 10;
 }
-/* VOL during recording: next microphone gain, applied at once (REC keeps it for next time) */
-void rec_gain_step(void)
-{
-    rh.gain = rh.gain < REC_GAIN_MAX ? rh.gain + 1 : 0;
-    rh.gain_chk = (uint8_t)~rh.gain;
-    G_AICTL = (G_AICTL & ~AICTL_MICGAIN) | rh.gain;
-    gfx_char(REC_X_VAL, REC_Y_GAIN, '0' + rh.gain, 1, C_FG, C_BG);
-}
-
 /* mm:ss +1 / -1 second in place (digits only, no division) */
 void tick(char *t, int8_t d)                  /* mm:ss +1 / -1 second in place */
 {

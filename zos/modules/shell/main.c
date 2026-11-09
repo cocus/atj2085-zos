@@ -154,12 +154,20 @@ static void list_row(uint8_t i)
     skin_text(26, y + 5, m->label, s ? sk.sel_text : sk.fg);
 }
 
-static void list(void)
+/* the visible rows only (scrolling: no full-screen clear, so title and footer don't flicker) */
+static void list_rows(void)
 {
     uint8_t i;
+    for (i = st.first; i < st.first + ROWS; i++)
+        if (i < nlist) list_row(i);
+        else gfx_fill(0, TOP_Y + (i - st.first) * ROW_H, LCD_W, ROW_H, sk.bg);
+}
+
+static void list(void)
+{
     gfx_fill(0, 0, LCD_W, LCD_H, sk.bg);
     skin_title(T(cat_str[items[st.top]]));
-    for (i = st.first; i < nlist && i < st.first + ROWS; i++) list_row(i);
+    list_rows();
     skin_footer(T(S_FT_LIST));
 }
 
@@ -281,7 +289,7 @@ uint16_t mod_main(void)
             if (st.sel != old) {
                 if (st.sel < st.first || st.sel >= st.first + ROWS) {
                     st.first = st.sel < st.first ? st.sel : st.sel - ROWS + 1;
-                    list();
+                    list_rows();
                 } else { list_row(old); list_row(st.sel); }
                 continue;
             }

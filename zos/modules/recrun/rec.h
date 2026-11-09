@@ -49,6 +49,5 @@ uint8_t rec_load_dsp(void);                 /* reccold.c */
 void rec_start(uint8_t rate_i);
 void rec_stop(void);
 void rec_dsp_reset(uint8_t rate_i);
-void rec_gain_step(void);                   /* screen.c: VOL = next mic gain, live */
 void vu_step(void);                         /* screen.c: VU level 20/s, drawn in slices */
 #endif

@@ -34,8 +34,7 @@ static char t_el[6] = "00:00", t_fr[6];
 static uint8_t piece;
 static uint16_t free0, ui_t;
 static uint32_t consumed;
-static const uint16_t p10[5] = { 10000, 1000, 100, 10, 1 };
-#define N_PIECES (1 + 15)                    /* (the VU has its own path: vu_step) */
+#define N_PIECES (1 + 10)                    /* (the VU has its own path: vu_step) */
 void tick(char *t, int8_t d);                       /* screen.c (_CODE2) */
 static void ui_step(void)
 {
@@ -53,10 +52,6 @@ static void ui_step(void)
         }
     } else if (piece < 6) gfx_char(REC_X_VAL + (piece - 1) * 6, REC_Y_TIME, t_el[piece - 1], 1, C_OK, C_BG);
     else if (piece < 11) gfx_char(REC_X_VAL + (piece - 6) * 6, REC_Y_FREE, t_fr[piece - 6], 1, C_FG, C_BG);
-    else {
-        i = piece - 11;
-        gfx_char(REC_X_VAL + i * 6, REC_Y_LOST, '0' + drops / p10[i] % 10, 1, drops ? C_SEL : C_FG, C_BG);
-    }
     if (++piece == N_PIECES) piece = 0;
 }
 
@@ -121,7 +116,6 @@ static void record(void)
         rec_service();
         while (ev_get(&e)) {
             if (e.type == EV_DSP) rec_dsp(e.code);
-            else if (e.type == EV_KEY_DOWN && e.code == KEY_VOL) rec_gain_step();
             else if ((e.type == EV_KEY_DOWN && (e.code == KEY_PLAY || e.code == KEY_MENU)) || e.type == EV_POWER) {
                 if (e.type == EV_POWER) rh.flags |= RH_F_POWER;
                 if (!stop_req) { stop_req = 1; t_stop = hal_ticks(); }

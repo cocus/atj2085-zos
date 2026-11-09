@@ -23,19 +23,43 @@
 #include "strings.h"
 #include "rechand.h"
 #include "recui.h"
+#include "regs.h"
 
 #define BUF ((uint8_t *)HAL_MODRAM_BASE)          /* ZRAM1: fatw / NAND DMA buffer */
 static const char *const rate_s[NRATES] = { "16000 HZ", "22050 HZ", "32000 HZ" };
 static const uint16_t rate_hz[NRATES] = { 16000, 22050, 32000 };
 static uint8_t ri = RATE_22K;
+SFR(M_AICTL, P_AICTL);
+SFR(M_ADCMOD, P_ADCMOD);
 static void value(uint8_t y, const char *s, uint16_t c);
 #define GAIN_OK() (rh.gain <= REC_GAIN_MAX && rh.gain_chk == (uint8_t)~rh.gain)
 static void gain_show(void)
 {
-    static char t[2];
+    uint8_t i;
     if (!GAIN_OK()) { rh.gain = REC_GAIN_DEF; rh.gain_chk = (uint8_t)~REC_GAIN_DEF; }
-    t[0] = '0' + rh.gain;
-    value(REC_Y_GAIN, t, C_FG);
+    gfx_fill(REC_X_VAL, REC_Y_GAIN, LCD_W - REC_X_VAL, 9, C_BG);
+    gfx_char(REC_X_VAL, REC_Y_GAIN, '0' + rh.gain, 1, C_SEL, C_BG);
+    for (i = 0; i <= REC_GAIN_MAX; i++)
+        gfx_fill(REC_X_VAL + 10 + i * 7, REC_Y_GAIN + 7 - i, 5, 1 + i, i <= rh.gain ? C_OK : C_DIM);
+}
+
+/* idle monitor: microphone -> ADC at the default rate, polled for the level meter only (no DSP).
+ * Same input setup as RECRUN (reccold.c rec_start); switched off before RECRUN takes over. */
+static uint8_t sv_aic, sv_mod, mon;
+static void mon_on(void)
+{
+    sv_aic = M_AICTL; sv_mod = M_ADCMOD;
+    M_ADCMOD = ADCMOD_MIC;
+    vu_adc_on(MIX_SRC_MIC);
+    M_AICTL = (M_AICTL & ~(AICTL_MIC | AICTL_FM | AICTL_LINE | AICTL_MICGAIN)) | AICTL_MIC | rh.gain;
+    mon = 1;
+}
+static void mon_off(void)
+{
+    if (!mon) return;
+    vu_adc_off();
+    M_AICTL = sv_aic; M_ADCMOD = sv_mod;
+    mon = 0;
 }
 
 static void value(uint8_t y, const char *s, uint16_t c)
@@ -76,7 +100,6 @@ static void screen(void)
     gfx_text(4, REC_Y_GAIN, T(S_GAIN), 1, C_DIM, C_BG);
     gfx_text(4, REC_Y_TIME, T(S_TIME), 1, C_DIM, C_BG);
     gfx_text(4, REC_Y_FREE, T(S_FREE), 1, C_DIM, C_BG);
-    gfx_text(4, REC_Y_LOST, T(S_DROPS), 1, C_DIM, C_BG);
     value(REC_Y_RATE, rate_s[ri], C_FG);
     gain_show();
     mmss(t, 0);
@@ -132,7 +155,6 @@ static void finish(void)
     rh.magic = 0;
     mmss(t, rh.secs);
     value(REC_Y_TIME, t, C_FG);
-    if (rh.drops) { gfx_fill(REC_X_VAL, REC_Y_LOST, 40, 8, C_BG); gfx_num(REC_X_VAL, REC_Y_LOST, rh.drops, 1, C_SEL, C_BG); }
     name_line(rh.name, C_FG);
     if (rh.nsec < 2) { err_line(S_ERROR, rh.err); return; }   /* nothing recorded: the run stays free */
     state(S_SAVING, C_FG);
@@ -150,6 +172,7 @@ static void finish(void)
 uint16_t mod_main(void)
 {
     event_t e;
+    uint16_t t;
     skin_load();
     if (rh.magic == REC_MAGIC && rh.state == RH_DONE) {
         ri = rh.rate < NRATES ? rh.rate : RATE_22K;
@@ -162,20 +185,36 @@ uint16_t mod_main(void)
         state(S_READY, C_OK);
     }
     skin_footer(T(S_FT_IDLE));
+    mon_on();
+    t = hal_ticks();
     for (;;) {
-        ev_wait(&e, 0);
-        if (e.type == EV_POWER) { MOD_POWER_REQ = 1; return 0; }
-        if (e.type != EV_KEY_DOWN) continue;
-        if (e.code == KEY_MENU) return 0;
-        if (e.code == KEY_LEFT || e.code == KEY_RIGHT) {
-            ri = e.code == KEY_RIGHT ? (ri + 1) % NRATES : (ri + NRATES - 1) % NRATES;
-            value(REC_Y_RATE, rate_s[ri], C_FG);
-        } else if (e.code == KEY_VOL) {
-            rh.gain = rh.gain < REC_GAIN_MAX ? rh.gain + 1 : 0;
+        vu_poll();
+        if ((uint16_t)(hal_ticks() - t) >= 5) {          /* meter 20 times a second */
+            t = hal_ticks();
+            vu_bar(4, REC_Y_VU, vu_level(), C_DIM);
+        }
+        hal_watchdog();
+        if (!ev_get(&e)) continue;
+        if (e.type == EV_POWER) { mon_off(); MOD_POWER_REQ = 1; return 0; }
+        if (e.type != EV_KEY_DOWN && e.type != EV_KEY_REPEAT) continue;
+        if (e.code == KEY_LEFT || e.code == KEY_RIGHT) {     /* gain, live (as AUDIOTST) */
+            if (e.code == KEY_RIGHT && rh.gain < REC_GAIN_MAX) rh.gain++;
+            else if (e.code == KEY_LEFT && rh.gain) rh.gain--;
+            else continue;
             rh.gain_chk = (uint8_t)~rh.gain;
+            M_AICTL = (M_AICTL & ~AICTL_MICGAIN) | rh.gain;
             gain_show();
+            continue;
+        }
+        if (e.type != EV_KEY_DOWN) continue;
+        if (e.code == KEY_MENU) { mon_off(); return 0; }
+        if (e.code == KEY_VOL) {
+            ri = (ri + 1) % NRATES;
+            value(REC_Y_RATE, rate_s[ri], C_FG);
         } else if (e.code == KEY_PLAY) {
+            mon_off();                                 /* RECRUN sets the input up itself */
             if (prepare()) return MOD_CHAIN;
+            mon_on();
         }
     }
 }

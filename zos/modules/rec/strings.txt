@@ -10,7 +10,7 @@ PREP      | PREPARING...         | PREPARANDO...
 SAVING    | SAVING...            | GUARDANDO...
 SAVED     | SAVED                | GUARDADO
 FULLSAVED | DISK FULL - SAVED    | DISCO LLENO-GUARDADO
-FT_IDLE   | <<>>:HZ  VOL:GAIN    | <<>>:HZ  VOL:GANANC.
+FT_IDLE   | <<>>:GAIN  VOL:HZ    | <<>>:GANANC. VOL:HZ
 NODSP     | NO ADENCM.DSP        | FALTA ADENCM.DSP
 NOROOM    | DISK FULL            | DISCO LLENO
 ERROR     | ERROR                | ERROR
