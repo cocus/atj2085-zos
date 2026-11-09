@@ -16,6 +16,8 @@
 #define REC_MAGIC 0x5A
 enum { RH_RECORD = 1, RH_DONE };
 enum { RATE_16K, RATE_22K, RATE_32K, NRATES };
+#define REC_GAIN_DEF 5                  /* microphone gain AICTL_MICGAIN 0..7 (capture.c used 5) */
+#define REC_GAIN_MAX 7
 #define RH_F_POWER  0x01                /* left by EV_POWER: power off after the commit */
 #define RH_F_HEADER 0x02                /* the DSP's final header was written to sector 0 */
 #define RH_F_FULL   0x04                /* stopped because the run is full */
@@ -28,6 +30,7 @@ typedef struct {
     uint16_t c0, n;                     /* the run (fatw_c0, fatw_n) */
     uint16_t drops, secs;               /* lost samples, recorded seconds */
     uint8_t  err;                       /* FTLW_* / 0xFE no DSP file / 0 */
+    uint8_t  gain, gain_chk;            /* mic gain; gain_chk = ~gain (valid without magic) */
 } rec_hand_t;
 static __at(REC_HAND_ADDR) rec_hand_t rh;    /* absolute: no storage allocated */
 typedef char rec_hand_fits[sizeof(rec_hand_t) <= 48 ? 1 : -1];

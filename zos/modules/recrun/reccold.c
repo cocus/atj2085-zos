@@ -72,7 +72,7 @@ void rec_start(uint8_t ri)
     C_ADCPD2 |= ADCPD2_ON;
     C_ADCPD9 &= ~ADCPD9_MASK;
     C_AICTL = (C_AICTL & ~(AICTL_MIC | AICTL_FM | AICTL_LINE | AICTL_MICGAIN)) |
-              AICTL_ADC | AICTL_DITHER | AICTL_MIC | REC_MIC_GAIN;
+              AICTL_ADC | AICTL_DITHER | AICTL_MIC | (rh.gain & AICTL_MICGAIN);
     /* encoder options: DM_PARAMS.. lane L = 0 (no VOX/AGC/noise gate, SDK basal_adag_en.c) */
     memset(rb.q[1], 0, N_PARAMS);
     x.dst = PAGE_BASE + DM_PARAMS; x.src = rb.q[1]; x.len = N_PARAMS;

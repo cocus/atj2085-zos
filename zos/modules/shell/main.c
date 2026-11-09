@@ -27,13 +27,13 @@ SFR(GPC_D, P_GPC_D);
 SFR(WDT, P_WDT);
 
 /* ---- what is on the disk -------------------------------------------------------------------- */
-enum { CAT_MUSIC, CAT_FM, CAT_GAMES, CAT_TOOLS, CAT_USB, CAT_SETTINGS, CAT_REBOOT, NCAT, CAT_HIDDEN = 0xFF };
-static const uint8_t cat_str[NCAT] = { S_MUSIC, S_FM, S_GAMES, S_TOOLS, S_USB, S_SETTINGS, S_REBOOT };
-static const char *const cat_icon[NCAT] = { "MUSIC", "FM", "GAMES", "TOOLS", "USB", "SETTINGS", "REBOOT" };
+enum { CAT_MUSIC, CAT_FM, CAT_REC, CAT_GAMES, CAT_TOOLS, CAT_USB, CAT_SETTINGS, CAT_REBOOT, NCAT, CAT_HIDDEN = 0xFF };
+static const uint8_t cat_str[NCAT] = { S_MUSIC, S_FM, S_REC, S_GAMES, S_TOOLS, S_USB, S_SETTINGS, S_REBOOT };
+static const char *const cat_icon[NCAT] = { "MUSIC", "FM", "REC", "GAMES", "TOOLS", "USB", "SETTINGS", "REBOOT" };
 
 /* modules with a fixed place; anything else on the disk goes to TOOLS */
 static const struct { char name[9]; uint8_t cat; } known[] = {
-    { "MUSIC", CAT_MUSIC }, { "FM", CAT_FM }, { "USB", CAT_USB }, { "SETTINGS", CAT_SETTINGS },
+    { "MUSIC", CAT_MUSIC }, { "FM", CAT_FM }, { "REC", CAT_REC }, { "USB", CAT_USB }, { "SETTINGS", CAT_SETTINGS },
     { "SNAKE", CAT_GAMES }, { "SHELL", CAT_HIDDEN }, { "MP3PLAY", CAT_HIDDEN },
     { "DECPLAY", CAT_HIDDEN }, { "DECINFO", CAT_HIDDEN }, { "RECRUN", CAT_HIDDEN } };
 

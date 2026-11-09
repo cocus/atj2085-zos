@@ -28,6 +28,15 @@
 static const char *const rate_s[NRATES] = { "16000 HZ", "22050 HZ", "32000 HZ" };
 static const uint16_t rate_hz[NRATES] = { 16000, 22050, 32000 };
 static uint8_t ri = RATE_22K;
+static void value(uint8_t y, const char *s, uint16_t c);
+#define GAIN_OK() (rh.gain <= REC_GAIN_MAX && rh.gain_chk == (uint8_t)~rh.gain)
+static void gain_show(void)
+{
+    static char t[2];
+    if (!GAIN_OK()) { rh.gain = REC_GAIN_DEF; rh.gain_chk = (uint8_t)~REC_GAIN_DEF; }
+    t[0] = '0' + rh.gain;
+    value(REC_Y_GAIN, t, C_FG);
+}
 
 static void value(uint8_t y, const char *s, uint16_t c)
 {
@@ -64,10 +73,12 @@ static void screen(void)
     gfx_fill(0, 0, LCD_W, LCD_H, C_BG);
     skin_title(T(S_TITLE));
     gfx_text(4, REC_Y_RATE, T(S_RATE), 1, C_DIM, C_BG);
+    gfx_text(4, REC_Y_GAIN, T(S_GAIN), 1, C_DIM, C_BG);
     gfx_text(4, REC_Y_TIME, T(S_TIME), 1, C_DIM, C_BG);
     gfx_text(4, REC_Y_FREE, T(S_FREE), 1, C_DIM, C_BG);
     gfx_text(4, REC_Y_LOST, T(S_DROPS), 1, C_DIM, C_BG);
     value(REC_Y_RATE, rate_s[ri], C_FG);
+    gain_show();
     mmss(t, 0);
     value(REC_Y_TIME, t, C_FG);
     gfx_fill(4, REC_Y_VU, VU_W, VU_H, C_DIM);
@@ -159,6 +170,10 @@ uint16_t mod_main(void)
         if (e.code == KEY_LEFT || e.code == KEY_RIGHT) {
             ri = e.code == KEY_RIGHT ? (ri + 1) % NRATES : (ri + NRATES - 1) % NRATES;
             value(REC_Y_RATE, rate_s[ri], C_FG);
+        } else if (e.code == KEY_VOL) {
+            rh.gain = rh.gain < REC_GAIN_MAX ? rh.gain + 1 : 0;
+            rh.gain_chk = (uint8_t)~rh.gain;
+            gain_show();
         } else if (e.code == KEY_PLAY) {
             if (prepare()) return MOD_CHAIN;
         }

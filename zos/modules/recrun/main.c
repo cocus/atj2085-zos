@@ -31,22 +31,12 @@ void mmss(char *t, uint16_t s);
 /* every piece is cheap (the ADC FIFO holds 12 samples = 545 us at 22.05 kHz): the clocks count in
  * place as digits (no divisions), the lost counter takes one digit per piece */
 static char t_el[6] = "00:00", t_fr[6];
-static uint8_t piece, vu_now, vu_shown;
+static uint8_t piece;
 static uint16_t free0, ui_t;
 static uint32_t consumed;
 static const uint16_t p10[5] = { 10000, 1000, 100, 10, 1 };
-#define N_PIECES (1 + 15 + VU_H)
-static void tick(char *t, int8_t d)                  /* mm:ss +1 / -1 second in place */
-{
-    static const char top[5] = { '9', '9', 0, '5', '9' };
-    uint8_t i = 4;
-    for (;;) {
-        if (d > 0) { if (t[i] != top[i]) { t[i]++; return; } t[i] = '0'; }
-        else { if (t[i] != '0') { t[i]--; return; } t[i] = top[i]; }
-        if (!i) return;
-        if (--i == 2) i--;
-    }
-}
+#define N_PIECES (1 + 15)                    /* (the VU has its own path: vu_step) */
+void tick(char *t, int8_t d);                       /* screen.c (_CODE2) */
 static void ui_step(void)
 {
     uint8_t i;
@@ -63,23 +53,44 @@ static void ui_step(void)
         }
     } else if (piece < 6) gfx_char(REC_X_VAL + (piece - 1) * 6, REC_Y_TIME, t_el[piece - 1], 1, C_OK, C_BG);
     else if (piece < 11) gfx_char(REC_X_VAL + (piece - 6) * 6, REC_Y_FREE, t_fr[piece - 6], 1, C_FG, C_BG);
-    else if (piece < 16) {
+    else {
         i = piece - 11;
         gfx_char(REC_X_VAL + i * 6, REC_Y_LOST, '0' + drops / p10[i] % 10, 1, drops ? C_SEL : C_FG, C_BG);
-    } else {
-        i = piece - 16;
-        if (!i) {
-            c = vcnt ? (vsum / vcnt) << 5 : 0;
-            vsum = vcnt = 0;
-            vu_now = vu_px(c);
-            if (vu_now + 4 < vu_shown) vu_now = vu_shown - 4;    /* falls 4 px per frame */
-            vu_shown = vu_now;
-        }
-        c = vu_now < VU_W * 2 / 3 ? VU_C_LOW : vu_now < VU_W * 26 / 30 ? VU_C_MID : VU_C_HIGH;
-        gfx_fill(4, REC_Y_VU + i, vu_now, 1, c);
-        gfx_fill(4 + vu_now, REC_Y_VU + i, VU_W - vu_now, 1, C_DIM);
     }
     if (++piece == N_PIECES) piece = 0;
+}
+
+/* VU: a new level every 50 ms (rises at once, falls 6 px per update); only the difference to
+ * the bar on screen is drawn, at most 16 px x VU_H per call (as cheap as one old row piece),
+ * in fixed colour zones, so the main loop keeps draining the 12-sample ADC FIFO */
+static const uint8_t vu_z[3] = { VU_W * 2 / 3, VU_W * 26 / 30, VU_W };
+static const uint16_t vu_c[3] = { VU_C_LOW, VU_C_MID, VU_C_HIGH };
+static uint8_t vu_tgt, vu_cur;
+static uint16_t vu_t;
+void vu_step(void)
+{
+    uint8_t a, b, z;
+    uint16_t c;
+    if ((uint16_t)(hal_ticks() - vu_t) >= 5) {
+        vu_t = hal_ticks();
+        c = vcnt ? (vsum / vcnt) << 5 : 0;
+        vsum = vcnt = 0;
+        a = vu_px(c);
+        vu_tgt = a + 6 < vu_tgt ? vu_tgt - 6 : a;
+    }
+    if (vu_cur < vu_tgt) {
+        a = vu_cur;
+        for (z = 0; a >= vu_z[z]; z++) ;
+        b = vu_tgt;
+        if (b > vu_z[z]) b = vu_z[z];
+        if (b > a + 16) b = a + 16;
+        gfx_fill(4 + a, REC_Y_VU, b - a, VU_H, vu_c[z]);
+        vu_cur = b;
+    } else if (vu_cur > vu_tgt) {
+        a = vu_cur > vu_tgt + 16 ? vu_cur - 16 : vu_tgt;
+        gfx_fill(4 + a, REC_Y_VU, vu_cur - a, VU_H, C_DIM);
+        vu_cur = a;
+    }
 }
 
 static uint8_t put(const uint8_t *buf, uint32_t sec)
@@ -110,6 +121,7 @@ static void record(void)
         rec_service();
         while (ev_get(&e)) {
             if (e.type == EV_DSP) rec_dsp(e.code);
+            else if (e.type == EV_KEY_DOWN && e.code == KEY_VOL) rec_gain_step();
             else if ((e.type == EV_KEY_DOWN && (e.code == KEY_PLAY || e.code == KEY_MENU)) || e.type == EV_POWER) {
                 if (e.type == EV_POWER) rh.flags |= RH_F_POWER;
                 if (!stop_req) { stop_req = 1; t_stop = hal_ticks(); }
@@ -133,6 +145,7 @@ static void record(void)
         if (stop_req && (uint16_t)(hal_ticks() - t_stop) > 300) break;    /* no header in 3 s */
         rec_capture();                         /* again: the FIFO is 12 samples (375 us at 32 kHz) */
         ui_step();
+        vu_step();
         hal_watchdog();
     }
     rec_stop();

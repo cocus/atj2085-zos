@@ -1,6 +1,7 @@
 # ID | English | Spanish   (carousel names: 10 chars max; footers: 20)
 MUSIC    | MUSIC                 | MUSICA
 FM       | FM RADIO              | RADIO FM
+REC      | RECORDER              | GRABADORA
 GAMES    | GAMES                 | JUEGOS
 TOOLS    | TOOLS                 | SISTEMA
 USB      | USB                   | USB

@@ -1,6 +1,7 @@
 # ID | English | Spanish   (20 chars max)
 TITLE     | VOICE RECORDER       | GRABADORA
 RATE      | RATE                 | MUESTREO
+GAIN      | GAIN                 | GANANCIA
 TIME      | TIME                 | TIEMPO
 FREE      | FREE                 | LIBRE
 DROPS     | LOST                 | PERDIDAS
@@ -9,7 +10,7 @@ PREP      | PREPARING...         | PREPARANDO...
 SAVING    | SAVING...            | GUARDANDO...
 SAVED     | SAVED                | GUARDADO
 FULLSAVED | DISK FULL - SAVED    | DISCO LLENO-GUARDADO
-FT_IDLE   | << >> RATE  PLAY REC | << >> HZ  PLAY GRABA
+FT_IDLE   | <<>>:HZ  VOL:GAIN    | <<>>:HZ  VOL:GANANC.
 NODSP     | NO ADENCM.DSP        | FALTA ADENCM.DSP
 NOROOM    | DISK FULL            | DISCO LLENO
 ERROR     | ERROR                | ERROR
