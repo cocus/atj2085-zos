@@ -1,0 +1,520 @@
+/* I2C bus scan + TEA5767 FM tuner test.
+ *
+ * Mechanism (see lisong_rebuild/analysis/i2c.md): the board's FM tuner (TEA5767, I2C 0x60) is
+ * bit-banged by the stock FMRADIO.AP on GPIO C, NOT through the 0x7A-0x7C hardware I2C block:
+ *   SCL = GPIO_C0 (pin 63)   SDA = GPIO_C1 (pin 62)
+ *   port 0xF4 = GPIO C data     bit0 SCL, bit1 SDA   (bit2 = LCD A0, never touched here)
+ *   port 0xF3 = GPIO C enables  bit0 SCL out-enable, bit1 SDA out-enable,
+ *                               bit4 SCL in-enable,  bit5 SDA in-enable  (bit2/6 = C2, left alone)
+ * Outputs are push-pull (data=1 drives high, no open-drain emulation); to read the slave's ACK / data
+ * the SDA output is disabled (OE=0) and its input enabled (IE=1), then F4.1 shows the pin level.
+ * Everything we change (F3 bits 0,1,4,5 and F4 bits 0,1) is saved on entry and restored on exit. */
+#include <stdint.h>
+#include "../../hal/hal.h"
+#include "../../core/event.h"
+#include "../../apps/theme.h"
+#include "../common/skin.h"
+#include "../common/skcol.h"
+#include "../common/skinlite.c"
+
+#ifndef __SDCC                 /* editor / static analysis only */
+#define __sfr volatile unsigned char
+#define __at(x)
+#endif
+
+__sfr __at(0xF3) GPC_EN;        /* GPIO C: 0-2 output enable C0..C2, 4-6 input enable C0..C2 */
+__sfr __at(0xF4) GPC_DATA;      /* GPIO C: data bits C0..C2 (C2 = LCD A0) */
+
+#define SCL      0x01           /* in F4 and as output-enable in F3 */
+#define SDA      0x02
+#define SCL_IE   0x10           /* input-enable bits in F3 */
+#define SDA_IE   0x20
+#define EN_MASK  (SCL | SDA | SCL_IE | SDA_IE)   /* F3 bits we own; reserved bits 3/7 are never written 1 */
+#define DAT_MASK (SCL | SDA)
+
+#define TEA_ADDR 0x60           /* 7-bit; stock writes 0xC0, reads 0xC1 */
+
+static uint8_t sv_en, sv_dat;   /* saved pin state */
+
+static void dly(void)           /* ~ stock's "5 us" call/push/pop pad, a bit slower to be safe */
+{
+    volatile uint8_t i;
+    for (i = 4; i; i--) ;
+}
+
+static void wait_ticks(uint16_t t)
+{
+    uint16_t s = hal_ticks();
+    while ((uint16_t)(hal_ticks() - s) < t) { hal_watchdog(); hal_idle(); }
+}
+
+static void en_set(uint8_t set, uint8_t clr)
+{
+    GPC_EN = ((GPC_EN & 0x77) | set) & ~clr & 0x77;
+}
+static void dat_set(uint8_t set, uint8_t clr)
+{
+    GPC_DATA = ((GPC_DATA & 0x07) | set) & ~clr & 0x07;
+}
+
+static void scl(uint8_t v) { if (v) dat_set(SCL, 0); else dat_set(0, SCL); }
+static void sda(uint8_t v)                      /* drive SDA (OE on, IE off) */
+{
+    if (v) dat_set(SDA, 0); else dat_set(0, SDA);
+    en_set(SDA, SDA_IE);
+}
+static void sda_release(void) { en_set(SDA_IE, SDA); }       /* hi-Z, input on */
+static uint8_t sda_read(void) { return (GPC_DATA & SDA) ? 1 : 0; }
+
+/* take the pins: both lines driven high (bus idle, like the stock I2C_init) */
+static void bus_open(void)
+{
+    sv_en = GPC_EN & EN_MASK;
+    sv_dat = GPC_DATA & DAT_MASK;
+    dat_set(SCL | SDA, 0);
+    en_set(SCL | SDA, SCL_IE | SDA_IE);
+}
+
+/* give the pins back as we found them (data first, then enables) */
+static void bus_close(void)
+{
+    uint8_t d = GPC_DATA & 0x07, e = GPC_EN & 0x77;
+    GPC_DATA = (d & ~DAT_MASK) | sv_dat;
+    GPC_EN = (e & ~EN_MASK) | sv_en;
+}
+
+/* ---- hardware I2C master (PG v3.1 ch.9, datasheet v1.8 p.11) -------------------------------
+ * C0/C1 are I2C_SCL/I2C_SDA only in pin mode F2 (port 0xEE bits 7-5 = 001); "before enabling
+ * (7Ah bit7) the mode should be F1, then change to the other mode". Open drain, needs pull-ups.
+ * The guide does not spell out the master transfer sequence; this follows the PIC-SSP-like
+ * register set: address byte from 71h sent on START, data via 7Ch, status 7Bh bit7 = buffer
+ * flag (tx complete / rx full), 7Ah bit0 = last received bit (ACK = 0) on transmit and ACK
+ * enable on receive. Unverified on the device: watch the ST/CT diagnostics. */
+__sfr __at(0xEE) MFP;           /* 7-5 pin mode (000 F1 GPIO, 001 F2), 4 CE0S, 3-0 GPO_A */
+__sfr __at(0x71) I2C_ADDR;      /* 7-1 slave address, 0 R/W (master) */
+__sfr __at(0x7A) I2C_CTL;       /* 7 EN, 6 400k, 5 IRQ en, 4 slave, 3-2 cond, 0 ACK */
+__sfr __at(0x7B) I2C_ST;        /* 7 BF, 6 P, 5 S, 4 R/W, 3 D/A, 2 IRQ, 1 WCOL, 0 OV */
+__sfr __at(0x7C) I2C_DAT;
+#define CTL_EN    0x80
+#define CTL_START 0x04
+#define CTL_STOP  0x08
+#define ST_BF     0x80
+#define ST_ERR    0x03
+
+static uint8_t hw, hw_pending, hw_kick, sv_mfp, diag_st, diag_ct, diag_where;
+
+static uint8_t hw_wait(uint8_t where)           /* 1 = buffer flag set */
+{
+    uint16_t n;
+    for (n = 0; n < 3000; n++)
+        if (I2C_ST & ST_BF) return 1;
+    diag_st = I2C_ST; diag_ct = I2C_CTL; diag_where = where;
+    I2C_ST = ST_ERR | 0x04;                     /* clear WCOL/OV/IRQ (write 1 to clear) */
+    return 0;
+}
+
+static void hw_open(void)
+{
+    sv_mfp = MFP;
+    en_set(0, SCL | SDA);                       /* GPIO drivers off: the controller owns the pins */
+    MFP = sv_mfp & 0x1F;                        /* F1 */
+    I2C_CTL = 0;
+    I2C_ST = 0xFF & ~ST_BF;                     /* clear sticky bits */
+    I2C_CTL = CTL_EN;                           /* enable, master, 100 kHz, no IRQ */
+    MFP = (sv_mfp & 0x1F) | 0x20;               /* F2: C0/C1 = I2C */
+    diag_where = 0;
+}
+
+static void hw_close(void)
+{
+    I2C_CTL = CTL_EN | CTL_STOP;
+    dly(); dly();
+    MFP = sv_mfp & 0x1F;                        /* F1 first, then disable, as the guide orders */
+    I2C_CTL = 0;
+    MFP = sv_mfp;
+    en_set(SCL | SDA, SCL_IE | SDA_IE);         /* back to the bit-bang idle state */
+    dat_set(SCL | SDA, 0);
+}
+
+/* Measured on the device (diag screen, method B): START/STOP conditions are generated by writing
+ * 7Ah bits 3-2, which self-clear when done; the address byte is sent like data, through 7Ch
+ * (writing 7Ch clears BF, BF = 1 again when the byte and its ACK bit are done); 7Ah bit0 after
+ * the byte = ACK from the slave (0 = ACK, 1 = NACK: 0x60 -> CT 80, 0x50 -> CT 81).
+ * Writing 0 to 7Bh bit7 does NOT clear BF, so never wait for BF without writing 7Ch first. */
+static uint8_t hw_cond(uint8_t c, uint8_t where)
+{
+    uint16_t n;
+    I2C_CTL = CTL_EN | c;
+    for (n = 0; n < 3000; n++)
+        if (!(I2C_CTL & 0x0C)) return 1;
+    diag_st = I2C_ST; diag_ct = I2C_CTL; diag_where = where;
+    return 0;
+}
+
+static void i2c_start(void)
+{
+    if (hw) { hw_pending = 1; hw_cond(CTL_START, 5); return; }
+    sda(1); scl(1); dly();
+    sda(0); dly();
+    scl(0); dly();
+}
+
+static void i2c_stop(void)                      /* also the failure exit: always ends with both lines high */
+{
+    if (hw) { hw_pending = 0; hw_cond(CTL_STOP, 6); return; }
+    scl(0);
+    sda(0); dly();
+    scl(1); dly();
+    sda(1); dly();
+}
+
+static uint8_t hw_wr(uint8_t b)
+{
+    if (hw_pending) {                           /* address byte */
+        hw_pending = 0;
+        I2C_ADDR = b;
+        hw_kick = b & 1;
+    }
+    I2C_DAT = b;
+    if (!hw_wait(hw_kick ? 1 : 2)) return 0;
+    return !(I2C_CTL & 0x01);                   /* ACK = 0 */
+}
+
+/* receive: BF is still set from the address transmit, so the first byte needs a data-register
+ * read to clear it (and, PIC-like, to start the reception); each later read of the received byte
+ * frees the buffer for the next one. */
+
+
+static uint8_t hw_rd(uint8_t nack)
+{
+    I2C_CTL = CTL_EN | (nack ? 0 : 0x01);       /* ACK enable for this byte */
+    if (hw_kick) { hw_kick = 0; (void)I2C_DAT; }
+    if (!hw_wait(3)) return 0xFF;
+    return I2C_DAT;
+}
+
+/* returns 1 = ACK, 0 = NACK */
+static uint8_t i2c_wr(uint8_t b)
+{
+    uint8_t i, ack;
+    if (hw) return hw_wr(b);
+    for (i = 0; i < 8; i++) {
+        sda(b & 0x80); b <<= 1; dly();
+        scl(1); dly();
+        scl(0);
+    }
+    sda_release(); dly();
+    scl(1); dly();
+    ack = !sda_read();
+    scl(0); dly();
+    sda(0);                                     /* take SDA back (low), ready for the next byte/STOP */
+    return ack;
+}
+
+static uint8_t i2c_rd(uint8_t nack)
+{
+    uint8_t i, v = 0;
+    if (hw) return hw_rd(nack);
+    sda_release();
+    for (i = 0; i < 8; i++) {
+        scl(1); dly();
+        v = (v << 1) | sda_read();
+        scl(0); dly();
+    }
+    sda(nack); dly();                           /* ACK = low, NACK = high */
+    scl(1); dly();
+    scl(0); dly();
+    sda(0);
+    return v;
+}
+
+/* bus recovery: a slave holding SDA low is clocked out with up to 9 pulses */
+static void i2c_recover(void)
+{
+    uint8_t i;
+    sda_release();
+    for (i = 0; i < 9 && !sda_read(); i++) { scl(0); dly(); scl(1); dly(); }
+    sda(0); scl(1); dly(); sda(1); dly();
+}
+
+static uint8_t i2c_probe(uint8_t a7)            /* 1 = something ACKs address a7 */
+{
+    uint8_t ok;
+    i2c_start();
+    ok = i2c_wr(a7 << 1);
+    i2c_stop();
+    return ok;
+}
+
+/* ---- TEA5767 ---- */
+static uint8_t tea_w[5], tea_r[5];
+static uint8_t tea_mute;
+
+static uint8_t tea_write(void)
+{
+    uint8_t i, ok;
+    i2c_start();
+    ok = i2c_wr(TEA_ADDR << 1);
+    for (i = 0; ok && i < 5; i++) ok = i2c_wr(tea_w[i]);
+    i2c_stop();
+    return ok;
+}
+
+static uint8_t tea_read(void)
+{
+    uint8_t i, ok;
+    i2c_start();
+    ok = i2c_wr((TEA_ADDR << 1) | 1);
+    if (ok) for (i = 0; i < 5; i++) tea_r[i] = i2c_rd(i == 4);
+    i2c_stop();
+    return ok;
+}
+
+/* f10 = frequency in 100 kHz units. Crystal 32.768 kHz, high-side injection:
+ * PLL = 4 * (f + 225 kHz) / 32768 = 125 * (f_kHz + 225) / 1024 (the stock driver's formula) */
+static uint16_t tea_pll(uint16_t f10)
+{
+    uint32_t k = (uint32_t)f10 * 100UL + 225UL;
+    return (uint16_t)((k * 125UL + 512UL) >> 10);
+}
+static uint16_t tea_pll_to_f10(uint16_t pll)    /* f_kHz = pll * 32.768 - 225 */
+{
+    uint32_t k = ((uint32_t)pll * 4096UL + 62UL) / 125UL;
+    return (uint16_t)((k - 225UL + 50UL) / 100UL);
+}
+
+static uint8_t tea_tune(uint16_t f10, uint8_t standby)
+{
+    uint16_t pll = tea_pll(f10);
+    tea_w[0] = (tea_mute ? 0x80 : 0x00) | (uint8_t)(pll >> 8);
+    tea_w[1] = (uint8_t)pll;
+    tea_w[2] = 0x10;                            /* high-side injection, stereo, no search */
+    tea_w[3] = 0x16 | (standby ? 0x40 : 0);     /* XTAL=32.768k, HCC, SNC (stock default) */
+    tea_w[4] = 0x00;
+    return tea_write();
+}
+
+/* ---- drawing ---- */
+static void hexd(uint8_t x, uint8_t y, uint8_t n, uint16_t fg)
+{
+    gfx_char(x, y, n < 10 ? '0' + n : 'A' + n - 10, 1, fg, C_BG);
+}
+static void hex2(uint8_t x, uint8_t y, uint8_t v, uint16_t fg)
+{
+    hexd(x, y, v >> 4, fg);
+    hexd(x + 6, y, v & 15, fg);
+}
+static void clear(uint8_t y, uint8_t h) { gfx_fill(0, y, LCD_W, h, C_BG); }
+#define CLR_Y SKIN_TITLE_H                      /* page area: below the title, above the footer */
+
+/* HW mode: last timeout - where (1 address, 2 data write, 3 data read, 5 START, 6 STOP), ST 7Bh, CT 7Ah */
+static void show_diag(uint8_t y)
+{
+    if (!hw) return;
+    clear(y, 10);
+    if (!diag_where) { gfx_text(4, y, "HW: NO TIMEOUTS", 1, C_OK, C_BG); return; }
+    gfx_text(4, y, "TMO", 1, C_SEL, C_BG);
+    gfx_char(4 + 4 * 6, y, '0' + diag_where, 1, C_SEL, C_BG);
+    gfx_text(4 + 6 * 6, y, "ST", 1, C_DIM, C_BG);
+    hex2(4 + 9 * 6, y, diag_st, C_FG);
+    gfx_text(4 + 12 * 6, y, "CT", 1, C_DIM, C_BG);
+    hex2(4 + 15 * 6, y, diag_ct, C_FG);
+}
+
+/* HW diagnostics: per case, snapshots of (ST, CT) after each step and the number of loop
+ * iterations that saw SCL low on the pin (GPIO input sampling) - 0 = the controller never clocked */
+static uint8_t lg[8], nlg;
+static uint16_t scl_low;
+static void snap(void) { if (nlg < 8) { lg[nlg++] = I2C_ST; lg[nlg++] = I2C_CTL; } }
+static uint8_t wait_s(uint8_t mask)
+{
+    uint16_t n;
+    for (n = 0; n < 3000; n++) {
+        if (!(GPC_DATA & SCL)) scl_low++;
+        if (I2C_ST & mask) return 1;
+    }
+    return 0;
+}
+static void diag_case(uint8_t v, uint8_t a7)
+{
+    nlg = 0; scl_low = 0;
+    I2C_ST = 0x7F;                              /* bit7 write-0 clears BF, 6-0 write-1 clear */
+    snap();
+    if (!v) {                                   /* A: address from 71h with START */
+        I2C_ADDR = a7 << 1;
+        I2C_CTL = CTL_EN | CTL_START;
+        wait_s(ST_BF);
+        snap();
+    } else {                                    /* B: START, then address via the data register */
+        I2C_CTL = CTL_EN | CTL_START;
+        wait_s(0x20 | ST_BF);
+        snap();
+        I2C_ADDR = a7 << 1;
+        I2C_DAT = a7 << 1;
+        wait_s(ST_BF);
+        snap();
+    }
+    I2C_CTL = CTL_EN | CTL_STOP;
+    wait_s(0x40);
+    snap();
+}
+static void diag_screen(void)
+{
+    static const uint8_t addrs[2] = { TEA_ADDR, 0x50 };
+    uint8_t c, i, y = 18;
+    clear(CLR_Y, LCD_H - CLR_Y - 12);
+    en_set(SCL_IE | SDA_IE, SCL | SDA);         /* pin sampling; GPIO drivers stay off */
+    for (c = 0; c < 4; c++) {
+        diag_case(c >> 1, addrs[c & 1]);
+        gfx_char(4, y, 'A' + (c >> 1), 1, C_SEL, C_BG);
+        hex2(12, y, addrs[c & 1], C_SEL);
+        for (i = 0; i < nlg; i++) hex2(30 + i * 12 + (i >> 1) * 2, y, lg[i], (i & 1) ? C_DIM : C_FG);
+        gfx_text(12, y + 9, "SCL LOW", 1, C_DIM, C_BG);
+        gfx_num(60, y + 9, scl_low, 1, scl_low ? C_OK : C_SEL, C_BG);
+        y += 20;
+        hal_watchdog();
+    }
+    gfx_text(4, y, "PAIRS: ST CT PER STEP", 1, C_DIM, C_BG);
+}
+
+static uint8_t found[16];                       /* bitmap of acking 7-bit addresses */
+static uint8_t nfound;
+
+static void scan_screen(void)
+{
+    uint8_t a, n = 0, y, x, idle;
+    clear(CLR_Y, LCD_H - CLR_Y - 12);
+    if (hw) {
+        gfx_text(4, 18, "BUS: HW I2C (F2)", 1, C_SEL, C_BG);
+        diag_where = 0;
+    } else {
+        /* idle levels with both lines released: floats/low = no pull-up or stuck bus */
+        en_set(SCL_IE | SDA_IE, SCL | SDA);
+        dly(); dly();
+        idle = GPC_DATA & DAT_MASK;
+        en_set(SCL | SDA, SCL_IE | SDA_IE);
+        gfx_text(4, 18, "GPIO SCL=", 1, C_DIM, C_BG);
+        gfx_char(4 + 9 * 6, 18, (idle & SCL) ? '1' : '0', 1, C_FG, C_BG);
+        gfx_text(4 + 11 * 6, 18, "SDA=", 1, C_DIM, C_BG);
+        gfx_char(4 + 15 * 6, 18, (idle & SDA) ? '1' : '0', 1, C_FG, C_BG);
+        if (!(idle & SDA)) { gfx_text(4, 28, "SDA LOW: RECOVER", 1, C_SEL, C_BG); i2c_recover(); }
+    }
+    for (a = 0; a < 16; a++) found[a] = 0;
+    for (a = 0x03; a < 0x78; a++) {
+        if (i2c_probe(a)) { found[a >> 3] |= 1 << (a & 7); n++; }
+        if (!(a & 15)) hal_watchdog();
+    }
+    nfound = n;
+    gfx_text(4, 38, "SCAN 03-77 FOUND", 1, C_DIM, C_BG);
+    gfx_num(4 + 17 * 6, 38, n, 1, n ? C_OK : C_SEL, C_BG);
+    y = 50; x = 4;
+    for (a = 0x03; a < 0x78; a++) {
+        if (!(found[a >> 3] & (1 << (a & 7)))) continue;
+        hex2(x, y, a, C_OK);
+        if (a == TEA_ADDR) gfx_text(x + 14, y, "TEA", 1, C_SEL, C_BG), x += 18;
+        x += 20;
+        if (x > 100) { x = 4; y += 10; if (y > 90) break; }
+    }
+    if (!n) gfx_text(4, 50, "NO DEVICES (CHECK FM)", 1, C_SEL, C_BG);
+    show_diag(102);
+}
+
+static void tuner_screen(uint16_t f10, uint8_t ok_w, uint8_t ok_r)
+{
+    uint16_t pll;
+    uint8_t lev = tea_r[3] >> 4, i, ifc = tea_r[2] & 0x7F;
+    clear(CLR_Y, LCD_H - CLR_Y - 12);
+    gfx_num(4, 18, f10 / 10, 2, C_FG, C_BG);
+    gfx_char(4 + 3 * 12, 18, '.', 2, C_FG, C_BG);
+    gfx_char(4 + 4 * 12, 18, '0' + f10 % 10, 2, C_FG, C_BG);
+    gfx_text(4 + 6 * 12, 18, "MHZ", 1, C_DIM, C_BG);
+    gfx_text(4 + 6 * 12, 26, tea_mute ? "MUTED" : "SOUND", 1, tea_mute ? C_SEL : C_OK, C_BG);
+    gfx_text(4, 38, "WR", 1, C_DIM, C_BG);
+    for (i = 0; i < 5; i++) hex2(24 + i * 20, 38, tea_w[i], C_FG);
+    gfx_text(4, 48, "RD", 1, C_DIM, C_BG);
+    if (!ok_r) {
+        gfx_text(24, 48, ok_w ? "READ NACK" : "NO ACK FROM 60", 1, C_SEL, C_BG);
+        return;
+    }
+    for (i = 0; i < 5; i++) hex2(24 + i * 20, 48, tea_r[i], C_FG);
+    pll = ((uint16_t)(tea_r[0] & 0x3F) << 8) | tea_r[1];
+    gfx_text(4, 62, "READY", 1, C_DIM, C_BG);
+    gfx_char(4 + 6 * 6, 62, (tea_r[0] & 0x80) ? '1' : '0', 1, (tea_r[0] & 0x80) ? C_OK : C_SEL, C_BG);
+    gfx_text(4 + 9 * 6, 62, "BAND", 1, C_DIM, C_BG);
+    gfx_char(4 + 14 * 6, 62, (tea_r[0] & 0x40) ? '1' : '0', 1, C_FG, C_BG);
+    gfx_text(4 + 16 * 6, 62, "ST", 1, C_DIM, C_BG);
+    gfx_char(4 + 19 * 6, 62, (tea_r[2] & 0x80) ? '1' : '0', 1, C_FG, C_BG);
+    gfx_text(4, 72, "PLL", 1, C_DIM, C_BG);
+    gfx_num(4 + 4 * 6, 72, tea_pll_to_f10(pll), 1, C_FG, C_BG);
+    gfx_text(4 + 10 * 6, 72, "IF", 1, C_DIM, C_BG);
+    hex2(4 + 13 * 6, 72, ifc, (ifc >= 0x31 && ifc <= 0x3E) ? C_OK : C_SEL);   /* stock window 31h..3Eh */
+    gfx_text(4, 84, "LEVEL", 1, C_DIM, C_BG);
+    gfx_num(4 + 6 * 6, 84, lev, 1, C_FG, C_BG);
+    gfx_text(4 + 9 * 6, 84, "/15", 1, C_DIM, C_BG);
+    gfx_fill(4, 96, 120, 6, C_BAR);
+    gfx_fill(4, 96, 8 * lev, 6, C_OK);
+    show_diag(106);
+}
+
+uint16_t mod_main(void)
+{
+    event_t e;
+    uint8_t page = 0, ok_w = 0, ok_r = 0;
+    uint16_t f10 = 987;
+
+    skin_load();
+    gfx_fill(0, 0, LCD_W, LCD_H, C_BG);
+    skin_title("I2C / TEA5767");
+    skin_footer("PLAY:SCAN >>:FM VOL:HW");
+    bus_open();
+    wait_ticks(20);                             /* stock waits 200 ms after pin setup before probing */
+    scan_screen();
+
+    for (;;) {
+        e.type = EV_NONE;
+        ev_wait(&e, page ? 25 : 100);
+        if (e.type == EV_NONE) {
+            if (page) { ok_r = tea_read(); tuner_screen(f10, ok_w, ok_r); }
+            continue;
+        }
+        if (e.type != EV_KEY_DOWN && e.type != EV_KEY_REPEAT) continue;
+        if (e.type == EV_KEY_DOWN && e.code == KEY_VOL) {        /* switch GPIO <-> HW I2C */
+            i2c_stop();
+            if (hw) { hw = 0; hw_close(); } else { hw = 1; hw_open(); }
+            skin_footer(hw ? "PLAY:SCAN <<:DIAG VOL" : "PLAY:SCAN >>:FM VOL:HW");
+            page = 0;
+            scan_screen();
+        } else if (e.type == EV_KEY_DOWN && e.code == KEY_MENU) {
+            if (!page) break;
+            tea_tune(f10, 1);                   /* standby the tuner when leaving its page */
+            page = 0;
+            skin_footer("PLAY:SCAN >>:FM VOL:HW");
+            scan_screen();
+        } else if (!page) {
+            if (e.type != EV_KEY_DOWN) continue;
+            if (e.code == KEY_PLAY) scan_screen();
+            else if (e.code == KEY_LEFT && hw) diag_screen();
+            else if (e.code == KEY_RIGHT) {
+                page = 1; tea_mute = 0;
+                skin_footer("<< >>:FREQ PLAY:MUTE");
+                ok_w = tea_tune(f10, 0);
+                wait_ticks(6);
+                ok_r = ok_w ? tea_read() : 0;
+                tuner_screen(f10, ok_w, ok_r);
+            }
+        } else {
+            if (e.code == KEY_LEFT) f10 = f10 > 875 ? f10 - 1 : 1080;
+            else if (e.code == KEY_RIGHT) f10 = f10 < 1080 ? f10 + 1 : 875;
+            else if (e.code == KEY_PLAY && e.type == EV_KEY_DOWN) tea_mute ^= 1;
+            else continue;
+            ok_w = tea_tune(f10, 0);
+            wait_ticks(6);
+            ok_r = ok_w ? tea_read() : 0;
+            tuner_screen(f10, ok_w, ok_r);
+        }
+    }
+    i2c_stop();
+    if (hw) hw_close();
+    bus_close();
+    return 0;
+}

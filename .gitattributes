@@ -1,0 +1,5 @@
+* text=auto
+*.png binary
+*.bmp binary
+*.fnt binary
+*.icons text

@@ -1,0 +1,5 @@
+# ID | English | Spanish   (20 chars max)
+TITLE    | SNAKE                 | SNAKE
+PAUSE    | PAUSE                 | PAUSA
+GAMEOVER | GAME OVER             | FIN DEL JUEGO
+AGAIN    | PLAY: AGAIN           | PLAY: OTRA VEZ

@@ -1,0 +1,36 @@
+# zos core API, exported to modules through the jump table at 0x0803 (3 bytes per entry).
+# An entry's position is its ABI: modules are always rebuilt with the core (2026-11: unused entries dropped). Calling convention = SDCC __sdcccall(1), IY reserved.
+hal_ticks
+hal_watchdog
+hal_idle
+hal_lcd_window
+hal_lcd_fill
+hal_lcd_blit
+ev_get
+ev_wait
+gfx_fill
+gfx_char
+gfx_text
+gfx_num
+ui_header
+ui_footer
+page_get
+fat_mount
+fat_root
+fat_readdir
+fat_open
+fat_read
+fat_seek
+fat_find
+page_read
+page_write
+hal_fw_read
+hal_irq_mask
+hal_blk_read
+hal_lcd_contrast
+nand_read
+ftl_tbl
+fat_clus_lba
+mod_load
+mod_run
+hal_backlight

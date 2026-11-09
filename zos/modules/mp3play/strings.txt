@@ -1,0 +1,6 @@
+# ID | English | Spanish   (title: 13 chars max, footers: 20)
+TITLE     | NOW PLAYING           | ESCUCHANDO
+PAUSED    | PAUSED                | PAUSA
+FT_PLAY   | PLAY:II <<>>:TRK VOL  | PLAY:II <<>>:PISTA
+FT_VOL    | <<>>:VOLUME VOL:EXIT | <<>>:VOLUMEN VOL:SAL
+LOADING   | LOADING              | CARGANDO

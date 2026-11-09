@@ -1,0 +1,115 @@
+# Whitelist: this folder also holds vendor SDKs, stock firmware, NAND dumps, datasheets,
+# third-party repos and scratch work that must never be published. Everything is ignored
+# unless it is explicitly re-included below. To publish something new, add a `!` line.
+
+/*
+
+# ---- top level ---------------------------------------------------------------------------
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/LICENSE
+!/NOTICE.md
+!/docs/
+!/tools/
+/tools/*
+!/tools/fwpatch/
+
+# ---- zos: the OS --------------------------------------------------------------------------
+!/zos/
+/zos/out/
+
+# ---- emulator -----------------------------------------------------------------------------
+!/atj2085emu/
+/atj2085emu/*
+!/atj2085emu/README.md
+!/atj2085emu/headless.py
+!/atj2085emu/run_emu.py
+!/atj2085emu/emu/
+!/atj2085emu/tools/
+# rom/ holds the chip's mask-ROM runtime: generate it with tools/mkrom.py from your own dump
+# logs/ work/ screenshots/ testdisk/ = local runs (stock firmware screens, user data, music)
+
+# ---- lisong_rebuild: only the homebrew/boot tools and our own research notes -------------
+!/lisong_rebuild/
+/lisong_rebuild/*
+!/lisong_rebuild/analysis/
+/lisong_rebuild/analysis/*
+!/lisong_rebuild/analysis/*.md
+!/lisong_rebuild/homebrew/
+/lisong_rebuild/homebrew/out/
+!/lisong_rebuild/tools/
+/lisong_rebuild/tools/*
+!/lisong_rebuild/tools/README.md
+!/lisong_rebuild/tools/fwpatch/
+!/lisong_rebuild/tools/aptool.py
+!/lisong_rebuild/tools/asm_util.py
+!/lisong_rebuild/tools/drvtool.py
+!/lisong_rebuild/tools/emurun.py
+!/lisong_rebuild/tools/fakefs.py
+!/lisong_rebuild/tools/ftlread.py
+!/lisong_rebuild/tools/fwcheck.py
+!/lisong_rebuild/tools/fwinject.py
+!/lisong_rebuild/tools/fwtool.py
+!/lisong_rebuild/tools/mkfatimg.py
+!/lisong_rebuild/tools/nandinject.py
+!/lisong_rebuild/tools/profile.py
+!/lisong_rebuild/tools/restool.py
+!/lisong_rebuild/tools/s1clone.py
+!/lisong_rebuild/tools/test_z80dis.py
+!/lisong_rebuild/tools/z80dis.py
+# not published (see NOTICE / report): s1flash.py = port of wiRe's GPL s1res ADFU code;
+# apdis/drvdis/cport/difftest/libmatch/... = stock-firmware rebuild pipeline (SDK-dependent)
+
+# ---- never, anywhere (overrides the whitelist above) --------------------------------------
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.bak
+*.orig
+*.tmp
+*.log
+.buildlock
+# stock firmware, dumps, ROMs and anything extracted from them
+*.fw
+*.FW
+*.bin
+*.BIN
+*.s1clone
+*.ovl
+*.img
+*.AP
+*.ap
+*.DSP
+*.dsp
+*.DRV
+*.drv
+*.RES
+*.res
+*.SYS
+*.sys
+*.ZM
+*.s28
+*.rom
+*.idx
+# media and documents
+*.mp3
+*.MP3
+*.wav
+*.WAV
+*.pdf
+*.PDF
+*.doc
+*.docx
+*.rar
+*.7z
+*.zip
+# build outputs
+*.lst
+*.sym
+*.map
+*.ihx
+*.rel
+*.noi
+*.rst

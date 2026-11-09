@@ -1,0 +1,309 @@
+﻿######################################################################################################################
+#                                                                                                                    #
+#                     #######     ######     ######   ####  #### #######     ######  ####   ####                     #
+#                     ########   ########   ########  ####  #### #########  ######## ####   ####                     #
+#                     #### #### ####  #### ####  #### #### ####  #### #### ####  #### #### ####                      #
+#                     ####  ### ####  #### ####  #### #### ####  #### #### ####  #### #### ####                      #
+#                     ####  ### ####  #### ####  #### ########   #### #### ####  ####  #######                       #
+#                     #### #### ####  #### ####  #### ########   #### #### ####  ####  #######                       #
+#                     ########  ####  #### ####  #### #######    ########  ####  ####   #####                        #
+#                     ########  ####  #### ####       #######    ########  ####  ####   #####                        #
+#                     ########  ####  #### ####       #######    ######### ####  ####   #####                        #
+#                     #### #### ####  #### ####  #### ########   #### #### ####  ####  #######                       #
+#                     #### #### ####  #### ####  #### ########   #### #### ####  ####  #######                       #
+#                     #### #### ####  #### ####  #### #### ####  #### #### ####  #### #### ####                      #
+#                     #### #### ####  #### ####  #### #### ####  #### #### ####  #### #### ####                      #
+#                     #### ####  ########   ########  ####  #### #########  ######## ####   ####                     #
+#                     #### ####   ######     ######   ####  #### ########    ######  ####   ####                     #
+#                                                                                                                    #
+#                                      OPEN     SOURCE     JUKEBOX     FIRMWARE                                      #
+#                                                                                                                    #
+######################################################################################################################
+#                                                                                                                    #
+# THEME       : iLike                                                                                                #
+# TARGET(S)   : Apple iPod Colour/Photo                                                                              #
+# AUTHOR      : Hayden Pearce                   (Real Name)                                                          #
+#             : [St.]                           (Rockbox Forum Nick)                                                 #
+#             : S_a_i_n_t                       (IRC Nick #rockbox and #rockbox-community)                           #
+#             : st.lascivious@slingshot.co.nz   (Contact Email Address)                                              #
+# LICENSE     : CC-BY-SA                        (View this License at http://creativecommons.org/licenses/by-sa/3.0/)#
+# COPYRIGHT   : © Hayden Pearce 19/01/11        (19th of January 2011)                                               #
+#                                                                                                                    #
+######################################################################################################################
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+3g2:0
+3gp:0
+5e:0
+5f:0
+6e:0
+6f:0
+6h:0
+6j:0
+7z:0
+a52:0
+aa3:0
+ac3:0
+ace:0
+adf:0
+adx:0
+aif:0
+aiff:0
+ajz:0
+ape:0
+apl:0
+app:0
+arc:0
+arj:0
+art:0
+asf:0
+at3:0
+au:0
+avi:0
+bak:0
+bat:0
+bin:0
+bkf:0
+bmark:0
+bmp:0
+bsp:0
+bz2:0
+bzip2:0
+c100:0
+cab:0
+cbd:0
+ccd:0
+cells:0
+cfg:0
+ch8:0
+clb:0
+clock_settings:0
+cm3:0
+cmc:0
+cmr:0
+cms:0
+codec:0
+conf:0
+config:0
+cp:0
+csv:0
+cue:0
+d2:0
+db:0
+desc:0
+dict:0
+diff:0
+dll:0
+dlt:0
+dmc:0
+dmg:0
+doc:0
+docx:0
+dream:0
+dwg:0
+dxf:0
+elio:0
+exe:0
+flac:0
+fmr:0
+fms:0
+fnt:0
+gb:0
+gbc:0
+ged:0
+gigabeat:0
+gnumeric:0
+gpx:0
+gz:0
+gzip:0
+hex:0
+iaudio:0
+icons:0
+idx:0
+ignore:0
+iif:0
+img:0
+index:0
+ini:0
+ipod:0
+ipodx:0
+iriver:0
+iso:0
+it:0
+itlp:0
+jar:0
+jpe:0
+jpeg:0
+jpg:0
+kbd:0
+lbr:0
+lbxlls:0
+lha:0
+link:0
+lng:0
+log:0
+logik:0
+lqr:0
+lua:0
+lyre_proto1:0
+lzh:0
+m200:0
+m2ts:0
+m2v:0
+m3u8:0
+m3u:0
+m4a:0
+m4b:0
+mac:0
+mdx:0
+meizu:0
+mi4:0
+mid:0
+mif:0
+mini2440:0
+mmf:0
+mno:0
+mod:0
+moi:0
+mp1:0
+mp2:0
+mp3:0
+mp4:0
+mpa:0
+mpc:0
+mpd:0
+mpeg:0
+mpg:0
+mpq:0
+mpt:0
+mpv:0
+mrobe500:0
+mxf:0
+nfo:0
+nrg:0
+nsf:0
+nsfe:0
+nwc:0
+nzb:0
+odf:0
+ods:0
+oft:0
+oga:0
+ogg:0
+oma:0
+opml:0
+oxps:0
+pak:0
+par:0
+patch:0
+pdf:0
+pk3:0
+pk4:0
+pkg:0
+playlist_control:0
+png:0
+properties:0
+pud:0
+py:0
+qxd:0
+ra:0
+rar:0
+ras:0
+rdo:0
+ris:0
+rm:0
+rmi:0
+rmt:0
+rmvb:0
+rock:0
+rsbs:0
+rtf:0
+rvf:0
+rwps:0
+s3m:0
+sansa:0
+sap:0
+sav:0
+sbs:0
+sgf:0
+shn:0
+sid:0
+sit:0
+sitx:0
+sna:0
+snd:0
+spc:0
+spx:0
+ss:0
+svg:0
+swx:0
+talk:0
+tap:0
+tar:0
+tcd:0
+tga:0
+tgz:0
+tm2:0
+tm8:0
+tmc:0
+trx:0
+txt:0
+tzx:0
+ucl:0
+voice:0
+vox:0
+vu_meter:0
+vx747:0
+vx747p:0
+vx767:0
+vx777:0
+w64:0
+wad:0
+wav:0
+wma:0
+wmv:0
+wpl:0
+wps:0
+wv:0
+wvc:0
+xls:0
+xlsx:0
+xm:0
+xml:0
+yps3:0
+z1:0
+z2:0
+z3:0
+z4:0
+z5:0
+z6:0
+z7:0
+z8:0
+zip:0
+zv:0
+zvm60:0
+zvm:0
+zzz:0
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+######################################################################################################################
+#                                                                                                                    #
+# END OF FILE                                                                                                        #
+#                                                                                                                    #
+######################################################################################################################

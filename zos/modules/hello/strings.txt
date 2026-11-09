@@ -1,0 +1,6 @@
+# ID | English | Spanish   (20 chars max)
+TITLE | HELLO MODULE          | MODULO HOLA
+PAGE  | PAGE                  | PAGINA
+MAIN  | MAIN AT               | MAIN EN
+DATA  | DATA                  | DATOS
+BACK  | ANY KEY: BACK         | TECLA: VOLVER

@@ -1,0 +1,23 @@
+"""Self-test of the port-0x05 window model (device-measured semantics) incl. code execution."""
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from emu.fwimage import FwImage
+from emu.soc import ATJ2085
+
+e = ATJ2085(FwImage(os.path.join(os.path.dirname(__file__), '..', '..', 'my-ximpro.fw')), log=lambda s: None)
+o = e._out
+e.mem[0x4000] = 0x11                       # ZRAM2 (0xF7)
+for v, b in ((0xC0, 0x20), (0xC1, 0x21), (0xC2, 0x22), (0x34, 0x34), (0x35, 0x35), (0x36, 0x36)):
+    o(5, v); assert e.mem[0x4000] == 0, hex(v); e.mem[0x4000] = b; e.mem[0x7fff] = b
+o(5, 0x00); assert e.mem[0x4000] == 0 and e.mem[0x7fff] == 0; e.mem[0x4000] = 0x99   # lost
+for v, b in ((0xF7, 0x11), (0xC0, 0x20), (0xC1, 0x21), (0xC2, 0x22), (0x34, 0x34), (0x35, 0x35), (0x36, 0x36), (0x00, 0)):
+    o(5, v); assert e.mem[0x4000] == b, (hex(v), e.mem[0x4000]); assert v in (0xF7, 0) or e.mem[0x7fff] == b
+o(5, 0x24); assert e.mem[0x4000] == 0x34 and e.mem[0x6000] == 0       # IDM-L low half only
+assert e.dsp_read(4, 0x0000) == 0x34 and e.dsp_read(4, 0x3fff) == 0x34
+e.dsp_write(5, 0x10, 0x55); o(5, 0x35); assert e.mem[0x4010] == 0x55
+# execute code from an IPM page: ld a,0x5a ; ld (0x0100),a ; halt-loop
+o(5, 0xC1); e.mem[0x5000:0x5007] = bytes([0x3e, 0x5a, 0x32, 0x00, 0x01, 0x18, 0xfe])
+o(5, 0xF7); o(5, 0xC1)
+m = e.m; m.pc = 0x5000; e.mem[0x100] = 0; m.ticks_to_stop = 40; m.run()
+assert e.mem[0x100] == 0x5a, e.mem[0x100]
+print('paging self-test OK')

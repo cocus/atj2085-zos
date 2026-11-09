@@ -1,0 +1,5 @@
+# ID | English | Spanish   (footer: 20 chars max)
+TITLE  | MUSIC              | MUSICA
+FOOTER | PLAY:OPEN MENU:UP  | PLAY:ABRE MENU:ATRAS
+NODISK | NO DISK            | SIN DISCO
+LOADING | LOADING            | CARGANDO

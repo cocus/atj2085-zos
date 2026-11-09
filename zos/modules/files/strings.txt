@@ -1,0 +1,7 @@
+# ID | English | Spanish   (20 chars max)
+TITLE   | FILES                 | ARCHIVOS
+FOOTER  | PLAY:OPEN MENU:UP     | PLAY:ABRE MENU:ATRAS
+EMPTY   | EMPTY                 | VACIO
+NODISK  | NO FAT DISK           | SIN DISCO FAT
+READING | READING...            | LEYENDO...
+BACK    | ANY KEY: BACK         | TECLA: VOLVER

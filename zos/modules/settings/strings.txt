@@ -1,0 +1,17 @@
+# ID | English | Spanish   (labels: 12 chars max, values: 7, lines: 20)
+TITLE     | SETTINGS              | AJUSTES
+LANG      | LANGUAGE              | IDIOMA
+LANGNAME  | ENGLISH               | ESPANOL
+CONTRAST  | CONTRAST              | CONTRASTE
+BACKLIGHT | LIGHT OFF             | APAGAR LUZ
+BL_NEVER  | NEVER                 | NUNCA
+BL_10     | 10 S                  | 10 S
+BL_30     | 30 S                  | 30 S
+BL_60     | 60 S                  | 60 S
+BATT      | BATTERY               | BATERIA
+BEEP      | KEY BEEP              | PITIDO TECLA
+FMUSB     | FM USB OUT            | FM POR USB
+ON        | ON                    | SI
+OFF       | OFF                   | NO
+NOTE      | SAVED ON EXIT         | SE GUARDA AL SALIR
+FOOTER    | PLAY:+ VOL:- MENU:OK  | PLAY:+ VOL:- MENU:OK

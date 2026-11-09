@@ -1,0 +1,5 @@
+# ID | English | Spanish   (20 chars max)
+TITLE  | LCD SPEED TEST        | VELOCIDAD LCD
+FILLS  | 16 FULL FILLS:        | 16 RELLENOS:
+GLYPHS | 228 GLYPHS:           | 228 CARACTERES:
+BACK   | ANY KEY: BACK         | TECLA: VOLVER

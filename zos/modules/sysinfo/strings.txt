@@ -1,0 +1,6 @@
+# ID | English | Spanish   (labels: 11 chars max, footer: 20)
+TITLE   | SYSTEM                | SISTEMA
+TICKS   | TICKS                 | TICKS
+SECONDS | SECONDS               | SEGUNDOS
+KEYS    | KEY EVENTS            | TECLAS
+FOOTER  | MENU: BACK            | MENU: VOLVER

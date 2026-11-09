@@ -1,0 +1,5 @@
+# ID | English | Spanish   (20 chars per line max on screen, A-Z 0-9 and punctuation only)
+TITLE   | FM RADIO              | RADIO FM
+NOTUNER | NO TUNER              | SIN SINTONIZADOR
+FT_TUNE | << >>:TUNE PLAY:SEEK  | <<>>:SINT PLAY:BUSCA
+FT_VOL  | <<>>:VOL PLAY:USB     | <<>>:VOL PLAY:USB
