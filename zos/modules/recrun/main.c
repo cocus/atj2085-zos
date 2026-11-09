@@ -91,9 +91,13 @@ void vu_step(void)
 static uint8_t put(const uint8_t *buf, uint32_t sec)
 {
     uint8_t r;
-    __critical {                               /* interrupts off: ftlw_idle serves ADC + DSP */
-        r = ftlw_write(rh.lba0 + sec, buf);
-    }
+    /* interrupts off: ftlw_idle serves ADC + DSP. Plain DI/EI, not __critical: SDCC saves the state
+     * with a single LD A,I, and the Z80 erratum (an IRQ accepted during it reads P/V = 0) then left
+     * interrupts off for good: ticks and keys stopped, the device froze without a watchdog reset.
+     * The main loop always runs with interrupts on, so there is nothing to restore. */
+    __asm__("di");
+    r = ftlw_write(rh.lba0 + sec, buf);
+    __asm__("ei");
     return r;
 }
 
