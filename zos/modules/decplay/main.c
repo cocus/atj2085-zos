@@ -6,7 +6,7 @@
 #include "../music/shared.h"
 #include "dec.h"
 #define PLAYER_ZM    DECPLAY_ZM
-#define FOOTER_IN_MAIN                         /* (_CODE2 is the full one here) */
+/* (FOOTER_IN_MAIN / FMT_IN_UI: where the shared functions go; MP3PLAY's defaults fit here too) */
 #define PLAYER_OTHER MP3PLAY_ZM
 #define PLAYER_NOT_MINE(idx) (!((idx) & TRK_KIND))     /* an MP3 */
 #define PLAYER_NODSP "NO OGGDEC/PCMDEC.DSP"

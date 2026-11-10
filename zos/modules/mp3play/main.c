@@ -63,7 +63,10 @@ static void pump(void)
 
 
 static uint8_t held, reps;                              /* << >> held */
+#ifdef MP3_STEP
 static char req_sec;
+uint16_t req_shown;
+#endif
 
 
 
@@ -86,6 +89,9 @@ void footer(void)
     vol_shown = 0xFF;
 }
 #endif
+#ifndef FMT_IN_UI
+#include "fmtline.inc"
+#endif
 
 /* redraw only what changed, one small piece at a time */
 static void update(void)
@@ -101,21 +107,21 @@ static void update(void)
             pump();
         }
     if (tot != tot_shown) { tot_shown = tot; tfmt(t, tot, hrs); txt(12, 78, t, C_DIM); pump(); }
-    if (memcmp(kb, mp3.kbps, 3)) {
-        memcpy(kb, mp3.kbps, 3);
-        for (i = 0; i < 3; i++) gfx_char(64 + i * 6, 78, kb[i] | 0x20, 1, C_DIM, C_BG);
+    if (memcmp(kb, mp3.kbps, 4)) {                     /* kbps + rate code (mp3.h: adjacent) */
+        memcpy(kb, mp3.kbps, 4);
+        fmt_line();
         pump();
     }
     while (tot > 500) { tot >>= 1; now >>= 1; }        /* 16-bit progress */
     w = tot ? (uint8_t)(now * 120 / tot) : 0;
     if (w > 120) w = 120;
-    if (w > bar_w) fill(4 + bar_w, 92, w - bar_w, 4, C_OK);
-    else if (w < bar_w) fill(4 + w, 92, bar_w - w, 4, C_BAR);
+    if (w > bar_w) bar(4 + bar_w, PB_Y, w - bar_w, S->bar[BAR_PON]);
+    else if (w < bar_w) bar(4 + w, PB_Y, bar_w - w, S->bar[BAR_POFF]);
     bar_w = w;
     if (mp3.vol != vol_shown) {
         vol_shown = mp3.vol;
-        fill(28, 103, 93, 6, C_BAR);
-        fill(28, 103, mp3.vol * 3, 6, volmode ? C_SEL : C_FG);
+        bar(28, VB_Y, 93, S->bar[BAR_VOFF]);
+        bar(28, VB_Y, mp3.vol * 3, S->bar[volmode ? BAR_VSEL : BAR_VON]);
         pump();
     }
 #ifdef MP3_STEP

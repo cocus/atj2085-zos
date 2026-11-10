@@ -1,5 +1,6 @@
 # ID | English | Spanish   (footer: 20 chars max)
 TITLE  | MUSIC              | MUSICA
+PLAYING | NOW PLAYING        | ESCUCHANDO
 FOOTER | PLAY:OPEN MENU:UP  | PLAY:ABRE MENU:ATRAS
 NODISK | NO DISK            | SIN DISCO
 LOADING | LOADING            | CARGANDO

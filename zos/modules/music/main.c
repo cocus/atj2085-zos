@@ -45,10 +45,20 @@ static void upname(char *d, const fat_dirent_t *e, uint8_t w)
     }
 }
 
+static void dir_open(fat_file_t *d)               /* the folder at S->depth */
+{
+    if (!S->depth) { fat_root(d); return; }
+    memset(&de, 0, sizeof de);
+    de.clus = S->dclus[S->depth];
+    de.attr = FAT_ATTR_DIR;
+    fat_open(d, &de);
+}
+
 static void load(void)
 {
-    fat_file_t d = S->dirs[S->depth];
+    fat_file_t d;
     uint8_t k;
+    dir_open(&d);
     n = 0;
     while (n < MAXE && fat_readdir(&d, &de)) {
         if (de.name[0] == '.' && de.name[1] == ' ') continue;
@@ -110,7 +120,6 @@ static void type_icon(uint8_t t, uint8_t x, uint8_t y)   /* set pixels only, one
 static uint8_t soff, spause;
 static uint16_t selbar[ROW_H];                     /* SELBAR.ZI colour of each row (skinlib.c) */
 static uint8_t selbar_ok;
-uint8_t selbar_column(uint16_t *col, uint8_t h);   /* skinlib.c */
 
 static void name_text(uint8_t i, uint8_t y, uint8_t s)
 {
@@ -161,13 +170,46 @@ static void list(void)
     gfx_text(4, LCD_H - 9, T(S_FOOTER), 1, sk.dim, sk.bg);
 }
 
+/* the players' static chrome (shared.h): skinned title bar, and the colours of their progress / volume
+ * bars row by row (one column of PROGBAR.ZI / VOLBAR.ZI; empty part = the same at 1/4 brightness,
+ * volume mode = halfway to white). No bar image: the theme's flat colours, the progress bar 4 rows
+ * high and the volume bar 6 (bg rows) as before. */
+uint8_t skin_column(const char *name11, uint16_t *col, uint8_t h);   /* skinlib.c */
+#define DARK(c)  (((c) >> 2) & 0x39E7)
+#define LIGHT(c) ((((c) >> 1) & 0x7BEF) + 0x7BEF)
+static void player_chrome(void)
+{
+    uint16_t (*b)[BAR_H] = S->bar, c;
+    uint8_t r, p = skin_column("PROGBAR ZI ", b[BAR_PON], BAR_H),
+            v = skin_column("VOLBAR  ZI ", b[BAR_VON], BAR_H), edge;
+    for (r = 0; r < BAR_H; r++) {
+        edge = r < 2 || r == BAR_H - 1;
+        if (p) b[BAR_POFF][r] = DARK(b[BAR_PON][r]);
+        else {
+            b[BAR_PON][r] = edge ? sk.bg : sk.sel_top;
+            b[BAR_POFF][r] = edge ? sk.bg : sk.bar;
+        }
+        if (v) {
+            c = b[BAR_VON][r];
+            b[BAR_VOFF][r] = DARK(c);
+            b[BAR_VSEL][r] = LIGHT(c);
+        } else {
+            b[BAR_VON][r] = r ? sk.fg : sk.bg;
+            b[BAR_VOFF][r] = r ? sk.bar : sk.bg;
+            b[BAR_VSEL][r] = r ? sk.sel_bot : sk.bg;
+        }
+    }
+    gfx_fill(0, 0, LCD_W, SKIN_TITLE_H, sk.bg);       /* (no TITLE.ZI: a 12-row bar) */
+    skin_title(T(S_PLAYING));
+}
+
 /* playlist = tracks of this folder from the selected one on, then chain to the first one's player */
 static uint16_t play(void)
 {
     uint8_t i;
     mus_trk_t *t;
     S->ntrk = S->cur = 0;
-    ZCFG->res_dir = S->dirs[S->depth].start;
+    ZCFG->res_dir = S->depth ? S->dclus[S->depth] : 0;
     for (i = S->sel; i < n && S->ntrk < MUS_TRACKS; i++) {
         if (ents[i].dir == FAT_ATTR_DIR) continue;
         t = &S->trk[S->ntrk++];
@@ -178,6 +220,7 @@ static uint16_t play(void)
         t->name[MUS_NAMEW] = 0;
     }
     memcpy(S->next, S->trk[0].idx & TRK_KIND ? DECPLAY_ZM : MP3PLAY_ZM, 12);
+    player_chrome();
 
     return MOD_CHAIN;
 }
@@ -196,14 +239,8 @@ uint16_t mod_main(void)
         memset(S, 0, sizeof *S);
         S->magic = MUS_MAGIC;
         S->vol = ZCFG->magic == ZCFG_MAGIC && ZCFG->vol <= 31 ? ZCFG->vol : VOL_DEF;
-        fat_root(&S->dirs[0]);
         if (ZCFG->magic == ZCFG_MAGIC && ZCFG->res_file) {   /* ... or straight back into the last file */
-            if (ZCFG->res_dir) {
-                memset(&de, 0, sizeof de);
-                de.clus = ZCFG->res_dir;
-                de.attr = FAT_ATTR_DIR;
-                fat_open(&S->dirs[++S->depth], &de);
-            }
+            if (ZCFG->res_dir) S->dclus[++S->depth] = ZCFG->res_dir;
             load();
             for (old = 0; old < n && (ents[old].dir == FAT_ATTR_DIR || ents[old].clus != ZCFG->res_file); old++) ;
             if (old < n) {
@@ -221,7 +258,7 @@ uint16_t mod_main(void)
         cfg_save();
         if (MOD_POWER_REQ) { S->magic = 0; return 0; }  /* player left for power-off: on to SHELL */
     }
-    selbar_ok = selbar_column(selbar, ROW_H);
+    selbar_ok = skin_column("SELBAR  ZI ", selbar, ROW_H);
     load();
     if (S->sel >= n) S->sel = S->top = 0;
     list();
@@ -246,10 +283,7 @@ uint16_t mod_main(void)
         } else if (e.code == KEY_PLAY && n) {
             if (ents[S->sel].dir != FAT_ATTR_DIR) return play();
             if (S->depth >= 5) continue;
-            memset(&de, 0, sizeof de);
-            de.clus = ents[S->sel].clus;
-            de.attr = FAT_ATTR_DIR;
-            fat_open(&S->dirs[++S->depth], &de);
+            S->dclus[++S->depth] = ents[S->sel].clus;
         } else continue;
         S->sel = S->top = 0;
         load();
