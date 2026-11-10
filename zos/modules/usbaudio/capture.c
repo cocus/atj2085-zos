@@ -7,7 +7,7 @@
  * endpoint, wMaxPacketSize 68 (desc.c). With fixed 32-sample packets and two buffers, every late
  * frame dropped a whole buffer (recorded: jumps on 32-sample boundaries, ~9/s = choppy FM). */
 #include <stdint.h>
-#include "../usb/usb.h"
+#include "../common/usb/usb.h"
 #include "capture.h"
 
 SFR(CAP_ADCDATA, P_ADCDATA);

@@ -1,0 +1,13 @@
+# ID | English | Spanish   (menu rows / footers: 20 chars max, labels: 6)
+TITLE    | USB                  | USB
+MSC_RO   | MASS STORAGE (RO)    | DISCO USB (LECTURA)
+MSC_RW   | MASS STORAGE (RW)    | DISCO USB (LEC/ESC)
+CDC      | SERIAL CONSOLE       | CONSOLA SERIE
+AUDIO    | USB AUDIO            | AUDIO USB
+CPU      | CPU                  | CPU
+USB      | USB                  | USB
+CABLE    | CABLE IN             | CONECTADO
+NOCABLE  | NO CABLE             | SIN CABLE
+NOMOD    | MODULE MISSING       | FALTA EL MODULO
+FT_MENU  | << >> SELECT PLAY:GO | << >>:ELIGE PLAY:VA
+FT_RUN   | PLAY/MENU: OFF       | PLAY/MENU: APAGA

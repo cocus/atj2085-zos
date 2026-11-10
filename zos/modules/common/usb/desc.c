@@ -8,6 +8,7 @@
  */
 #include <stdint.h>
 #include "usb.h"
+/* one function per module (usbdev.c): USB_CDC_ONLY = the console, else mass storage */
 
 #define VID_L 0x09
 #define VID_H 0x12
@@ -15,6 +16,7 @@
 #define EP_IN    0x82               /* EP2 IN  (EPI_EP2IN),  bulk 64 */
 #define EP_NOTIF 0x81               /* EP1 IN  (EPI_EP1IN),  interrupt 8, CDC only, always NAKs */
 
+#ifndef USB_CDC_ONLY
 static const uint8_t dev_msc[18] = {
     18, 1, 0x10, 0x01,              /* USB 1.10 (as the stock disk) */
     0, 0, 0, 8,                     /* class per interface, EP0 = 8 bytes */
@@ -28,7 +30,11 @@ static const uint8_t cfg_msc[32] = {
     7, 5, EP_OUT, 2, 64, 0, 0,
     7, 5, EP_IN, 2, 64, 0, 0
 };
-
+static const char *const str_msc[] = { "zos", "zos USB disk (read-only)", "ZOS000000001" };
+#define DEV dev_msc
+#define CFG cfg_msc
+#define STR str_msc
+#else
 static const uint8_t dev_cdc[18] = {
     18, 1, 0x00, 0x02,              /* USB 2.00 (IAD); full speed only: device qualifier stalls */
     0xEF, 0x02, 0x01, 8,            /* "uses IAD" */
@@ -49,19 +55,21 @@ static const uint8_t cfg_cdc[75] = {
     7, 5, EP_OUT, 2, 64, 0, 0,
     7, 5, EP_IN, 2, 64, 0, 0
 };
-
-static const char *const str_msc[] = { "zos", "zos USB disk (read-only)", "ZOS000000001" };
 static const char *const str_cdc[] = { "zos", "zos debug console", "ZOS000000002" };
+#define DEV dev_cdc
+#define CFG cfg_cdc
+#define STR str_cdc
+#endif
 
 const uint8_t *desc_device(void)
 {
-    return usb_fn == FN_CDC ? dev_cdc : dev_msc;
+    return DEV;
 }
 
 const uint8_t *desc_config(uint16_t *len)
 {
-    *len = usb_fn == FN_CDC ? sizeof cfg_cdc : sizeof cfg_msc;
-    return usb_fn == FN_CDC ? cfg_cdc : cfg_msc;
+    *len = sizeof CFG;
+    return CFG;
 }
 
 /* string descriptor `idx` as UTF-16LE into out (<= 64 bytes); 0 = no such string (stall) */
@@ -71,8 +79,7 @@ uint8_t desc_string(uint8_t idx, uint8_t *out)
     uint8_t n = 2;
     if (idx == 0) { out[0] = 4; out[1] = 3; out[2] = 0x09; out[3] = 0x04; return 4; }  /* en-US */
     if (idx > 3) return 0;
-    if (usb_fn == FN_CDC) s = str_cdc[idx - 1];
-    else s = str_msc[idx - 1];
+    s = STR[idx - 1];
     while (*s && n < 64) { out[n++] = *s++; out[n++] = 0; }
     out[0] = n;
     out[1] = 3;

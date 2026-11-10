@@ -1,10 +1,12 @@
 """zos USB module test in atj2085emu with the minimal host model (atj2085emu/emu/usbhost.py).
 
 usage: lisong_rebuild/.venv/Scripts/python.exe zos/tools/emu_usb_test.py [OUTDIR]  (default zos/out/usbtest)
-Runs build.py --no-deploy itself and copies ZOS.AP + USB.ZM + USBAUDIO.ZM into OUTDIR (out/ is shared).
+Runs build.py --no-deploy itself and copies ZOS.AP + the USB modules (USB.ZM launcher, USBDISK.ZM,
+USBCON.ZM, USBAUDIO.ZM: MODS) into OUTDIR (out/ is shared).
 
 Boots the stock firmware from the NAND dump with both USB modules injected into the user disk (nandinject
-overlay), starts ZOS.AP like emu_nand_zos.py, opens MODULES -> USB, then:
+overlay), starts ZOS.AP like emu_nand_zos.py, opens MODULES -> USB (launcher), then (each function
+is its own module, chained from the launcher and back):
   1. MASS STORAGE: plug the cable, enumerate (descriptors, SET_ADDRESS, SET_CONFIGURATION,
      GET_MAX_LUN), run SCSI (INQUIRY, TUR, READ CAPACITY, MODE SENSE 6/10, READ FORMAT CAPACITIES,
      READ(10) single + 9-block ping-pong compared with ftlread's FTL, WRITE(10) -> DATA PROTECT,
@@ -32,6 +34,7 @@ from emu.usbhost import UsbHostModel, HostError
 from ftlread import Ftl, Fat, UD_FAT_BASE, ecc512, FW_UNITS
 
 DUMP = os.path.join(ROOT, 'readback-my-ximpro.s1clone')
+MODS = ('ZOS.AP', 'USB.ZM', 'USBDISK.ZM', 'USBCON.ZM', 'USBAUDIO.ZM')
 OUTB = os.path.join(HERE, '..', 'out', 'atj2085')
 MHZ = 24_576_000
 fails = []
@@ -377,17 +380,16 @@ def stage(out):
                 except OSError:
                     time.sleep(0.5)
             try:
-                ok = all(os.path.exists(os.path.join(OUTB, n)) for n in
-                         ('ZOS.AP', 'USB.ZM', 'USBAUDIO.ZM'))
+                ok = all(os.path.exists(os.path.join(OUTB, n)) for n in MODS)
                 if ok:
-                    for n in ('ZOS.AP', 'USB.ZM', 'USBAUDIO.ZM'):
+                    for n in MODS:
                         shutil.copy(os.path.join(OUTB, n), os.path.join(out, n))
             finally:
                 f.seek(0)
                 msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
         if ok:
             return out
-    sys.exit('could not stage ZOS.AP / USB.ZM / USBAUDIO.ZM')
+    sys.exit('could not stage ' + ' / '.join(MODS))
 
 
 def main():
@@ -396,8 +398,8 @@ def main():
     os.makedirs(out, exist_ok=True)
     OUTB = stage(out)
     ovl = os.path.join(out, 'usb.ovl')
-    subprocess.run([sys.executable, os.path.join(TOOLS, 'nandinject.py'), DUMP, ovl,
-                    os.path.join(OUTB, 'USB.ZM'), os.path.join(OUTB, 'USBAUDIO.ZM')], check=True)
+    subprocess.run([sys.executable, os.path.join(TOOLS, 'nandinject.py'), DUMP, ovl]
+                   + [os.path.join(OUTB, n) for n in MODS[1:]], check=True)
     logf = open(os.path.join(out, 'run.log'), 'w')
     log = lambda s: logf.write(s + '\n')
     emu = ATJ2085(FwImage(os.path.join(ROOT, 'my-ximpro.fw')), log=log, nand=DUMP, nand_overlay=ovl,

@@ -5,7 +5,24 @@
 #include <stdint.h>
 #include <string.h>
 #include "usb.h"
-#include "../../core/event.h"
+#include "../../../core/event.h"
+
+/* the one function this module serves (usb.h): its bus reset / configured / class request hooks */
+#if defined(USB_AUDIO_ONLY)
+#define FN_RESET()      usb_audio_reset()
+#define FN_CONFIGURED() usb_audio_configured()
+#define FN_SETUP()      usb_audio_setup()
+#elif defined(USB_CDC_ONLY)
+#define FN_RESET()      cdc_reset()
+#define FN_CONFIGURED() cdc_configured()
+#define FN_SETUP()      cdc_setup()
+#elif defined(USB_MSC_ONLY)
+#define FN_RESET()      msc_reset()
+#define FN_CONFIGURED() msc_configured()
+#define FN_SETUP()      msc_setup()
+#else
+#error "define USB_MSC_ONLY, USB_CDC_ONLY or USB_AUDIO_ONLY before including usbdev.c"
+#endif
 
 SFR(PLLCTL, P_PLLCTL);
 SFR(CLKCTL2, P_CLKCTL2);
@@ -41,18 +58,15 @@ uint16_t usb_nsetup, usb_nreset;
 uint8_t usb_lcok, usb_lcfail;
 static uint8_t addr, pll_saved, pll_set;
 
-#ifdef USB_AUDIO_ONLY
+#ifndef USB_MSC_ONLY
 void usb_log(uint8_t k, uint8_t a, uint8_t b, uint8_t c, uint16_t w)
 {
     (void)k; (void)a; (void)b; (void)c; (void)w;
 }
 #else
-uint8_t usb_logpos, usb_logn;
-
 void usb_log(uint8_t k, uint8_t a, uint8_t b, uint8_t c, uint16_t w)
 {
     logent_t *e;
-    if (usb_fn != FN_MSC) return;
     e = &usb_logv[usb_logpos];
     e->k = k; e->a = a; e->b = b; e->c = c; e->w = w;
     usb_logpos = (usb_logpos + 1) & (LOG_N - 1);
@@ -60,7 +74,7 @@ void usb_log(uint8_t k, uint8_t a, uint8_t b, uint8_t c, uint16_t w)
 }
 #endif
 
-#ifndef USB_AUDIO_ONLY
+#ifdef USB_MSC_ONLY
 extern const uint8_t usbz_tpl[], usbz_tpl_end[];
 typedef struct { uint32_t lba; uint16_t dst; } blkz_t;
 typedef uint8_t (*blkz_fn)(const blkz_t *a);
@@ -91,12 +105,40 @@ void zr_zero(uint16_t off, uint16_t n)
     }
 }
 
-#ifndef USB_AUDIO_ONLY
+#ifdef USB_MSC_ONLY
 uint8_t blk_to_zram2(uint32_t lba, uint16_t dst)
 {
     blkz_t a;                               /* on the stack = ZRAM1, readable by the stub */
     a.lba = lba; a.dst = dst;
     return ((blkz_fn)ZR->stub)(&a);
+}
+#endif
+
+#ifndef USB_AUDIO_ONLY
+uint32_t msc_last, msc_boot_total;
+
+/* "total sectors" of the FAT boot sector (LBA 0), 0 = no valid boot sector */
+static uint32_t boot_total(void)
+{
+    uint8_t *b = ZR->sec;
+    uint32_t n;
+    if (!hal_blk_read(0, b) || b[510] != 0x55 || b[511] != 0xAA) return 0;
+    n = b[0x13] | ((uint16_t)b[0x14] << 8);
+    if (!n) n = b[0x20] | ((uint16_t)b[0x21] << 8) | ((uint32_t)b[0x22] << 16) | ((uint32_t)b[0x23] << 24);
+    return n;
+}
+
+/* capacity as the stock USB disk reports it (msc.c): RAM 0x008A = flash size in 128 KB units from
+ * BREC's flash detect (hal_blk_init reads the same word); cross-checked with the FAT boot sector
+ * (formatted by Windows through the stock driver, so its sector count = stock last LBA + 1): if
+ * they disagree, trust the volume (the console's ver/log show both) */
+void usb_disk_size(void)
+{
+    uint16_t cap = *(volatile uint16_t *)0x008A;
+    if (cap < 0x100 || cap > 0x4000) cap = 0x1EC0;          /* this player's 1 GB NAND */
+    msc_last = ((uint32_t)cap << 8) - 0x8000 - 0x210;
+    msc_boot_total = boot_total();
+    if (msc_boot_total > 0x1000 && msc_boot_total - 1 > msc_last) msc_last = msc_boot_total - 1;
 }
 #endif
 
@@ -183,11 +225,7 @@ static void bus_reset(void)                 /* USB_Reset_ISR b21:1637 */
     usb_nreset++;
     usb_log('R', 0, 0, 0, usb_nreset);
     usb_dirty = 1;
-#ifdef USB_AUDIO_ONLY
-    usb_audio_reset();
-#else
-    if (usb_fn == FN_MSC) msc_reset(); else cdc_reset();
-#endif
+    FN_RESET();
 }
 
 static void detach(void)                    /* UDiskExit text:0ee6 (without the clock off) */
@@ -198,11 +236,7 @@ static void detach(void)                    /* UDiskExit text:0ee6 (without the 
     USBIRQ = USBIRQ_ALL; EPIRQ = 0xFF;
     CLKCTL2 |= CLK2_BANKS;                  /* ZRAM2 back to the MCU */
     usb_cfg = 0;
-#ifdef USB_AUDIO_ONLY
-    usb_audio_reset();
-#else
-    if (usb_fn == FN_MSC) msc_reset(); else cdc_reset();
-#endif
+    FN_RESET();
     usb_dirty = 1;
 }
 
@@ -233,7 +267,7 @@ static void wait_ticks(uint8_t n)
 void usb_start(uint8_t fn)
 {
     usb_fn = fn;
-#ifndef USB_AUDIO_ONLY
+#ifdef USB_MSC_ONLY
     memcpy(ZR->stub, usbz_tpl, usbz_tpl_end - usbz_tpl);
 #endif
     /* 48 MHz for the SIE (UDiskInitInternal b20:1648: 42h |= E0h, then a short delay) */
@@ -334,14 +368,10 @@ static void set_config(void)
 {
     ep_idle(EPI_EP2IN, MPS_BULK_DATA0, ZO_TX);
     ep_idle(EPI_EP1OUT, MPS_BULK_DATA0, ZO_RX); /* DATA0; the class arms it with MPS_BULK (keeps it) */
-#ifdef USB_AUDIO_ONLY
-    usb_audio_configured();
-#else
-    if (usb_fn == FN_CDC) {                 /* notification endpoint 0x81: never armed (NAK) */
-        ep_idle(EPI_EP1IN, MPS_INT8_DATA0, ZO_TX);
-        cdc_configured();
-    } else msc_configured();                /* arms EP1 OUT */
+#ifdef USB_CDC_ONLY                         /* notification endpoint 0x81: never armed (NAK) */
+    ep_idle(EPI_EP1IN, MPS_INT8_DATA0, ZO_TX);
 #endif
+    FN_CONFIGURED();                        /* MSC/CDC: arms EP1 OUT */
 }
 
 /* endpoint halt (set_endpoint_stall b21:1999, clear_endpoint*_stall b21:1a0f/1a46) */
@@ -359,7 +389,7 @@ static void clear_halt(uint8_t ep)
     ep_idle(epi, epi == EPI_EP1IN ? MPS_INT8_DATA0 : MPS_BULK_DATA0, epi == EPI_EP1OUT ? ZO_RX : ZO_TX);
     if (epi == EPI_EP1OUT) {                /* stock re-arms the CBW buffer here */
 #ifndef USB_AUDIO_ONLY
-        if (usb_fn == FN_MSC) msc_configured(); else cdc_configured();
+        FN_CONFIGURED();
 #endif
     }
 }
@@ -398,13 +428,7 @@ static void std_request(void)
         if (rt != 0x00 || v > 1) break;
         usb_cfg = v;
         if (v) set_config();
-        else {
-#ifdef USB_AUDIO_ONLY
-            usb_audio_reset();
-#else
-            if (usb_fn == FN_MSC) msc_reset(); else cdc_reset();
-#endif
-        }
+        else FN_RESET();
         usb_state = v ? US_CONFIGURED : US_ADDRESS;
         usb_dirty = 1;
         ep0_ack();
@@ -459,11 +483,7 @@ static void ep0_setup(void)
     usb_su[4] = SU4; usb_su[5] = SU5; usb_su[6] = SU6; usb_su[7] = SU7;
     usb_log('S', usb_su[0], usb_su[1], usb_su[3], usb_su[6] | (usb_su[7] << 8));
     if ((usb_su[0] & 0x60) == 0x20) {       /* class request */
-#ifdef USB_AUDIO_ONLY
-        if (usb_audio_setup()) return;
-#else
-        if (usb_fn == FN_MSC ? msc_setup() : cdc_setup()) return;
-#endif
+        if (FN_SETUP()) return;
         ep0_stall();
         return;
     }

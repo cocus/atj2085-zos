@@ -6,7 +6,7 @@
  * Topology: input terminal -> output terminal (no feature unit: Windows/Linux do the volume).
  * Windows' usbaudio.sys wants room for one extra sample per frame in wMaxPacketSize. */
 #include <stdint.h>
-#include "../usb/usb.h"
+#include "../common/usb/usb.h"
 
 #define VID_L 0x09
 #define VID_H 0x12

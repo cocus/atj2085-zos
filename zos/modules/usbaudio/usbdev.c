@@ -1,2 +1,2 @@
 #define USB_AUDIO_ONLY
-#include "../usb/usbdev.c"
+#include "../common/usb/usbdev.c"

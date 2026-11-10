@@ -16,9 +16,8 @@
  *   wr [on|off] (mass-storage writes, default off) */
 #include <stdint.h>
 #include <string.h>
-#include "usb.h"
+#include "../common/usb/usb.h"
 #include "../../core/config.h"
-#include "../common/ftlw.h"
 
 SFR(EPIRQ, P_USB_EPIRQ);
 SFR(BR, P_USB_BR);
@@ -177,13 +176,12 @@ static const char help[] =
     "  in PORT / out PORT VAL   I/O ports (out 05 refused: it unmaps this module)\r\n"
     "  sec LBA                  user disk block (= FAT volume sector)\r\n"
     "  fw N                     firmware area sector (FWIMAGE.FW)\r\n"
-    "  wr [on|off]              mass-storage writes (default off, 24 MHz only)\r\n"
+    "  wr [on|off]              mass-storage writes (default on, 24 MHz only)\r\n"
     "  reset                    reboot the player (watchdog)\r\n";
 
 static void cmd_wr(void)
 {
-    puts_("mass-storage writes "); puts_(msc_wr ? "ON" : "off");
-    puts_(", write error "); hex(ftlw_error(), 2); nl();
+    puts_("mass-storage writes "); puts_(msc_wr ? "ON" : "off"); nl();   /* (next USBDISK session) */
 }
 
 static void cmd_usb(void)
@@ -257,7 +255,7 @@ static void execute(void)
     if (!*tok) return;
     if (word("help") || word("?")) puts_(help);
     else if (word("ver")) {
-        puts_("zos USB module 0.1, CDC-ACM console, 1209:0002 (pid.codes test PID)"); nl();
+        puts_("zos USBCON module 0.2, CDC-ACM console, 1209:0002 (pid.codes test PID)"); nl();
         puts_("disk: last LBA "); hex(msc_last, 8); puts_(" (512-byte blocks), RAM 008A = ");
         hex(*(volatile uint16_t *)0x008A, 4); puts_(", boot sector total "); hex(msc_boot_total, 8); nl();
         puts_("READ(10) path "); puts_(msc_rdmode ? "1 (stock ping-pong)" : "0 (flat)"); nl();
@@ -267,8 +265,8 @@ static void execute(void)
         while (*tok == ' ') tok++;
         if (word("on")) {
             if (port_in(P_CLKCTL2) & CLK2_PLLCPU) { puts_("refused: CPU at 48 MHz"); nl(); }
-            else { ftlw_reset(); msc_wr = 1; }
-        } else if (word("off")) { ftlw_flush(); msc_wr = 0; }
+            else msc_wr = 1;
+        } else if (word("off")) msc_wr = 0;
         cmd_wr();
     }
     else if (word("usb")) cmd_usb();

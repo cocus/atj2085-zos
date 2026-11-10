@@ -17,6 +17,7 @@
 #include "../../apps/theme.h"
 #include "../common/skin.h"
 #include "../common/beep.h"
+#include "../common/usb/usbsh.h"
 #include "../common/draw.h"
 #include "../common/cfg.h"
 #include "icons.h"
@@ -36,7 +37,8 @@ static const struct { char name[9]; uint8_t cat; } known[] = {
     { "MUSIC", CAT_MUSIC }, { "FM", CAT_FM }, { "REC", CAT_REC }, { "USB", CAT_USB }, { "SETTINGS", CAT_SETTINGS },
     { "SNAKE", CAT_GAMES }, { "HOPBOT", CAT_GAMES }, { "KLONDIKE", CAT_GAMES },
     { "SPIDER", CAT_GAMES }, { "MINES", CAT_GAMES }, { "SHELL", CAT_HIDDEN }, { "MP3PLAY", CAT_HIDDEN },
-    { "DECPLAY", CAT_HIDDEN }, { "DECINFO", CAT_HIDDEN }, { "RECRUN", CAT_HIDDEN } };
+    { "DECPLAY", CAT_HIDDEN }, { "DECINFO", CAT_HIDDEN }, { "RECRUN", CAT_HIDDEN },
+    { "USBDISK", CAT_HIDDEN }, { "USBCON", CAT_HIDDEN }, { "USBAUDIO", CAT_HIDDEN } };   /* USB's */
 
 #define MAXMOD 24
 typedef struct { char name11[12]; char label[9]; uint8_t cat; } mod_t;
@@ -222,6 +224,9 @@ static int8_t power_off(void)
     wait(25);
     if (why != WAKE_USB) return -1;
     hal_backlight(1);                                      /* no key press to switch it on */
+    USH->magic = USB_MAGIC;                                /* the USB launcher: straight into */
+    USH->back = 0;                                         /*   mass storage (common/usb/usbsh.h) */
+    USH->autostart = 1;
     return find_cat(CAT_USB);
 }
 

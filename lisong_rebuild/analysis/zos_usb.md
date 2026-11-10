@@ -1,8 +1,12 @@
 # zos USB modules: full-speed mass storage, CDC-ACM, and USB Audio Class capture
 
-Modules `zos/modules/usb/` -> `USB.ZM` and `zos/modules/usbaudio/` -> `USBAUDIO.ZM` (page modules).
-The USB menu launches the companion audio module in a second RAM page, keeping the MSC/CDC image
-within its 16 KB page limit. Hardware reference: `usb_msc.md` (controller,
+Page modules: `zos/modules/usb/` -> `USB.ZM` is only the launcher menu (skinned chrome, settings);
+it chains to one function module per function and they chain back: `usbdisk/` -> `USBDISK.ZM`
+(mass storage), `usbcon/` -> `USBCON.ZM` (CDC-ACM console), `usbaudio/` -> `USBAUDIO.ZM` (audio
+class). The shared device layer is `zos/modules/common/usb/` (usb.h, usbdev.c and desc.c built with
+USB_MSC_ONLY / USB_CDC_ONLY / USB_AUDIO_ONLY, usbz.inc, usbfn.c = the function-module frame); the
+settings that outlive one module (writes, READ(10) path, 48 MHz, event-log position) are in the
+HAL_SHARED block `usbsh.h`, the event log itself in ZRAM1 (`zr_t.logv`). Hardware reference: `usb_msc.md` (controller,
 stock USBDISK.AP), `atj2085_hw.md` 1.1/2.4, disassembly `disasm_v04/USBDISK_AP/` (addresses
 `b21:XXXX` = bank 0x21, `b20:` = bank 0x20, `text:` = AP text segment). Register names are the
 `regs.h` names (section "USB full-speed SIE", exported to assembler as `regs.inc`).

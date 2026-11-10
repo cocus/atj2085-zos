@@ -13,21 +13,20 @@
  * direction the host asked for (replies zero-padded / truncated), so there are no phase errors. */
 #include <stdint.h>
 #include <string.h>
-#include "usb.h"
+#include "../common/usb/usb.h"
 #include "../common/ftlw.h"
 
 SFR(CLKCTL2, P_CLKCTL2);
 SFR(EPIRQ, P_USB_EPIRQ);
 SFR(BR, P_USB_BR);
 
-uint32_t msc_last;
+/* msc_wr (writes, default on: user request; console "wr off" / 48 MHz turn them off) and msc_rdmode
+ * (1 = stock ping-pong: Windows mounts (device); 0 = flat: Windows looped on LBA 0) live in the USB
+ * shared block (usbsh.h, set by the launcher / console); msc_last, msc_boot_total: usbdev.c */
 uint16_t msc_ncmd, msc_nsec;
 uint8_t msc_ejected;
-uint8_t msc_wr = 1;       /* writes on by default (user request); console "wr off" / 48 MHz turn them off */
 static uint16_t twr;      /* hal_ticks() of the last WRITE(10) */
-uint8_t msc_rdmode = 1;   /* 1 = stock ping-pong: Windows mounts (device); 0 = flat: Windows looped on LBA 0 */
 uint8_t msc_lastop, msc_laststatus, msc_stage;
-uint32_t msc_boot_total;
 static uint8_t armed, sense_key, sense_asc, curop;
 static uint32_t dlen;                     /* dCBWDataTransferLength */
 static uint8_t flags;                     /* bCBWFlags: bit 7 = data to the host */

@@ -1,9 +1,11 @@
 /* USB Audio Class 1: capture from the built-in microphone or FM radio, or a USB speaker
- * (playback to the DAC / headphones, 48 or 44.1 kHz stereo). */
+ * (playback to the DAC / headphones, 48 or 44.1 kHz stereo). Function module of the USB launcher
+ * (modules/usb, common/usb/usbsh.h): the launcher drew the title; MENU chains back to it. */
 #include <stdint.h>
 #include <string.h>
-#include "../usb/usb.h"
+#include "../common/usb/usb.h"
 #include "../../core/event.h"
+#include "../../core/module.h"
 #include "../../apps/theme.h"
 #include "../common/skin.h"
 #include "../common/skcol.h"
@@ -176,9 +178,7 @@ uint16_t mod_main(void)
 {
     event_t e;
     source = 0;
-    skin_load();
-    gfx_fill(0, 0, LCD_W, LCD_H, C_BG);
-    skin_title("USB AUDIO");
+    skin_load();                                       /* (colours only: the title is the launcher's) */
     menu(0);
     for (;;) {
         ev_wait(&e, 0);
@@ -193,5 +193,7 @@ uint16_t mod_main(void)
         }
     }
     usb_stop_clock(0);
-    return 0;
+    USH->back = 1;                                     /* back to the USB launcher */
+    memcpy(USH->next, USB_ZM, 12);
+    return MOD_CHAIN;
 }

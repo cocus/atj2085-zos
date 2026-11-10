@@ -5,7 +5,7 @@
  * no interrupt: the CPU polls). Host and DAC clocks drift: the ring absorbs it, a full ring drops
  * the excess (counted), an empty one re-primes. */
 #include <stdint.h>
-#include "../usb/usb.h"
+#include "../common/usb/usb.h"
 #include "../../core/config.h"
 #include "../../core/module.h"
 #include "capture.h"

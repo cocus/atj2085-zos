@@ -1,8 +1,10 @@
-/* USB module (zos): full-speed device on the ATJ2085 SIE, polled (no USB interrupt), with mass
- * storage, a CDC-ACM debug console, and USB Audio Class capture.
+/* zos USB device code shared by the USB function modules (USBDISK mass storage, USBCON CDC-ACM debug
+ * console, USBAUDIO / FM USB OUT audio class): full-speed device on the ATJ2085 SIE, polled (no USB
+ * interrupt). USB.ZM is only the launcher menu (usbsh.h). Each module serves ONE function and builds
+ * usbdev.c (+ desc.c) with USB_MSC_ONLY, USB_CDC_ONLY or USB_AUDIO_ONLY defined.
  * Design + register sequences: lisong_rebuild/analysis/zos_usb.md.
  *
- * Memory: the module is a normal page module (code + variables in its DSP RAM page at 0x4000).
+ * Memory: each module is a normal page module (code + variables in its DSP RAM page at 0x4000).
  * The USB SIE can only DMA to/from ZRAM2 (4 KB, banks B1 + B2), which is mapped into the same
  * 0x4000 window (port 05 = PAGE_ZRAM2), so the module never touches ZRAM2 itself: it goes through
  * the core's page_read/page_write (ZRAM1 code) or a small ZRAM1 helper (usbz.s, copied to zr->stub).
@@ -11,8 +13,9 @@
 #define ZOS_USB_H
 #include <stdint.h>
 #include <setjmp.h>
-#include "../../hal/hal.h"
+#include "../../../hal/hal.h"
 #include "regs.h"
+#include "usbsh.h"
 
 /* event log (mass storage sessions; read later with the console's "log") */
 #define LOG_N 128
@@ -28,7 +31,7 @@ typedef struct {
     uint8_t tx[512];         /* MSC reply staging / console output buffer */
     uint8_t sec[512];        /* console: sector buffer */
     uint8_t zero[64];        /* zeros (zr_zero source) */
-    logent_t logv[LOG_N];    /* MSC event ring survives loading the audio companion module */
+    logent_t logv[LOG_N];    /* MSC event ring: survives chaining (USBDISK -> USB -> USBCON "log") */
 } zr_t;
 #define ZR ((zr_t *)HAL_MODRAM_BASE)
 
@@ -97,11 +100,13 @@ uint8_t desc_string(uint8_t idx, uint8_t *out);             /* -> length, 0 = no
  *    bytes), 'A' command aborted by reset/unplug (a = opcode, b = stage: 1 data, 2 CSW), 'H' halt
  *    set/cleared by the host (a = endpoint, b = 1 set / 0 clear),*/
 #define usb_logv (ZR->logv)
-extern uint8_t usb_logpos, usb_logn;
-void usb_log(uint8_t k, uint8_t a, uint8_t b, uint8_t c, uint16_t w);
-extern uint8_t msc_rdmode;              /* READ(10): 1 = stock bank ping-pong (default, device-verified), 0 = flat */
+#define usb_logpos (USH->logpos)        /* ring position: in the shared block (usbsh.h) */
+#define usb_logn (USH->logn)
+void usb_log(uint8_t k, uint8_t a, uint8_t b, uint8_t c, uint16_t w);   /* USBDISK only, else a no-op */
+#define msc_rdmode (USH->rdmode)        /* READ(10): 1 = stock bank ping-pong (default, device-verified), 0 = flat */
 extern uint8_t msc_lastop, msc_laststatus, msc_stage;
 extern uint32_t msc_boot_total;         /* FAT boot sector "total sectors" (0 = not read) */
+void usb_disk_size(void);               /* msc_last + msc_boot_total (usbdev.c, USBDISK + USBCON) */
 void msc_abort_note(uint8_t why);
 
 /* class hooks */
@@ -123,7 +128,7 @@ extern uint8_t audio_tuner_ok;
 extern uint32_t msc_last;       /* last LBA reported to the host */
 extern uint16_t msc_ncmd, msc_nsec;
 extern uint8_t msc_ejected;
-extern uint8_t msc_wr;          /* writes enabled (default on; console "wr off") */
+#define msc_wr (USH->wr)        /* writes enabled (default on; console "wr off", 48 MHz: off) */
 extern uint16_t cdc_nrx, cdc_ndrop;
 extern uint8_t cdc_dtr;
 #endif

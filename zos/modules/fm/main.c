@@ -20,7 +20,7 @@
 #include "../common/vu.h"
 #include "../common/draw.h"
 #include "strings.h"
-#include "../usb/usb.h"
+#include "../common/usb/usb.h"
 #include "../usbaudio/capture.h"
 #include "../../core/config.h"
 #include "../common/beep.h"
