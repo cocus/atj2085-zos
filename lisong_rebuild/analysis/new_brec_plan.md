@@ -39,7 +39,27 @@ with the keys and the LCD, easily. Stock must stay reachable at all times. The u
   see zos/targets/atj2085/platform.c). LCD init table + RAM-write sequence: boot.md 2.1 (CE3 via port 02 = 0x18, A0 on
   GPIO_C2). zos has a tiny 5x7 font and the LCD routines already.
 
-## 2. Two layers (recommendation: do layer 1 first, layer 2 only where it buys something)
+## 1.1 DECISION (user, 2026-11-10): build a NEW BREC; nothing goes into SYSCFG.SYS
+
+The boot menu and the USB mass-storage mode live **in the BREC itself**. Layer 1 below (menu as stage 0 in
+SYSCFG.SYS) is NOT to be implemented. Correction to the premise: **our BREC has no USB stack** (scan of the 16 KB
+binary: the only USB-register access is one `in` of port 0x50 (VBUS) at 0x097E; the 3900-line `usbdisk51kernel.asm`
+in the vendor folder belongs to the stock USB disk AP, and the BROM's own USB code is the vendor-protocol recovery
+ADFU, not mass storage). So the new BREC carries **our own** USB MSC code (zos `common/usb` MSC path, rewritten
+for the BREC environment) and must fit in 16 KB together with: NAND/FTL read+write for the user disk, LCD/keys/font/
+menu, the firmware check/A-B repair logic (can be slimmed: per-file sums already dropped by `brecpatch --fast`), the
+SYSCFG/payload loader, and the BROM contract (`0x55AA` + sum). Size is the main risk: measure first.
+Repo layout: own code in `newbrec/` (tracked, open source); the stock-derived reconstruction in `brec_src/`
+(recovered from the user's dump, **UNTRACKED**). If the stock routines (mount, firmware check, SYSCFG launcher,
+LCD init) are reused from `brec_src/`, the public tree cannot build the full image: keep the build script able to
+use `brec_src/` when present, and document a clean-room replacement as a later step.
+
+Milestones: M1 `newbrec` prototype = a 16 KB BREC image that boots in the emulator (BROM model), draws the boot
+screen and a key menu, and runs USB MSC RW on the user disk (no stock boot yet); M2 add payload start (ZOS from the
+disk / FWIMAGE) and the stock path with the RAM state the stock kernel expects (from `brec_src/`); M3 A/B repair
+logic + BOOT.CFG; M4 flash through FIRMWARE BREC UPDATE (exists), recovery via ROM mode + s1clone.
+
+## 2. Two layers (OBSOLETE: superseded by 1.1; kept for the reasoning)
 
 **Layer 1: boot menu as stage 0 in SYSCFG.SYS** (extends zosboot; no BREC write needed, flashable with s1res):
 * power-on: no key held -> default entry, immediately (no delay; boot speed matters to the user);
