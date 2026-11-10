@@ -59,6 +59,34 @@ screen and a key menu, and runs USB MSC RW on the user disk (no stock boot yet);
 disk / FWIMAGE) and the stock path with the RAM state the stock kernel expects (from `brec_src/`); M3 A/B repair
 logic + BOOT.CFG; M4 flash through FIRMWARE BREC UPDATE (exists), recovery via ROM mode + s1clone.
 
+## 1.2 REQUIREMENTS (user, 2026-11-10, refines 1.1: these win over 1.1 where they differ)
+
+* **The vendor folder does contain a USB stack** (`usbdisk51kernel.asm`, `usbsuspend.asm`: the stock USB disk kernel),
+  but it is not part of the BREC binary, it only exposes the user disk, and it is vendor code (reference only, never
+  committed). The new BREC gets **our own** USB MSC code that exposes the **entire NAND, not just the user data**.
+* **Screen/behaviour**: the new BREC just shows the logo and the options: **USB, STOCK, ZOS and one more item**
+  (a placeholder for the future minimal OS; label it OS2 or similar). If there is space to spare it reads
+  `BOOT.CFG`, otherwise the table is hardcoded.
+* **Hardware-agnostic structure**: core code independent of the board; a `target` layer for this ximpro
+  (LCD init table and routines, GPIO/key set-up, key map, clocks, NAND chip selects/geometry). The key and LCD code
+  must NOT depend on zos code (own small drivers; zos stays a reference). First and only target: ximpro (LSD_501).
+* **STOCK = load the stock BREC and jump into it.** Idea (to be verified in the dump/emulator): the stock BREC is kept
+  as a copy in NAND unit 1 (blocks 2/3: the BROM tries blocks 0,1,2,3 in turn and stock's FTL mount scans units
+  from 2, so unit 1 should be free; CHECK what is in blocks 2/3 of the dump). The new BREC copies a small loader
+  to ZRAM2 (0x4000, where the BROM's own loader runs), reads the 8 pages of that block into 0x0000-0x3FFF, checks
+  `0x55AA` + sum, restores the machine state the BROM leaves (usb_msc.md 4.2: watchdog 4E=0xA2, 04=01, di/im 1,
+  27=0, 42=0x80 (HOSC only), 70|=0x30, 05=0xF7, 00=0x10, sp) and `jp 0x0000`: the stock BREC then boots exactly as
+  before. Side benefit: if the new BREC in blocks 0/1 is ever bad, the BROM falls through to the stock copy itself.
+* **USB mode = raw NAND device** plus **PC-side tools** (`newbrec/tools/`, Python, Windows SCSI pass-through via ctypes
+  + Linux sg): at least `info`, `dump`, `restore`, `erase`, `read/write pages with spare`, `flash-brec`, `put-slot`.
+  Proposed device model: LUN0 = raw data sectors in physical order (block, page, sector), reads always, writes with
+  erase-on-first-page-of-a-block semantics and automatic ECC/spare (the BREC-style spare); vendor SCSI commands
+  (CDB 0xC0-0xCF) for full-fidelity page read/program including the spare bytes (FTL unit numbers/markers must
+  survive a restore), block erase, chip ID; optional LUN1 = the FTL-mapped user disk (FAT16, RW) only if space allows;
+  optional spare-area LUN read-only. Bad-block policy: report, don't hide.
+* **Payloads for ZOS / the extra item**: preferred = raw NAND slots written with the PC tool (no FAT code in the BREC);
+  alternative = FAT16 files from the user disk (zosboot has the code) if space allows. Decide after the size budget.
+
 ## 2. Two layers (OBSOLETE: superseded by 1.1; kept for the reasoning)
 
 **Layer 1: boot menu as stage 0 in SYSCFG.SYS** (extends zosboot; no BREC write needed, flashable with s1res):
