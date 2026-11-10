@@ -34,6 +34,7 @@ void fill(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint16_t c);
 #define PB_Y 89                                  /* progress bar (BAR_H rows, music/shared.h) */
 #define VB_Y 102                                 /* volume bar */
 void bar(uint8_t x, uint8_t y, uint8_t w, const uint16_t *rows);   /* one colour per row */
+extern uint8_t batt_shown;                       /* 0xFF = redraw */
 void batt(void);                                 /* the title bar's battery icon (EV_BATT) */
 void tfmt(char *t, uint16_t s, uint8_t hrs);     /* "mm:ss" / "h:mm:ss" */
 void footer(void);

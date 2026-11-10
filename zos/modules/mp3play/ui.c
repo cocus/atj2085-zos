@@ -12,6 +12,10 @@
 #define ZS_EXTERN
 #include "strings.h"
 #include "ui.h"
+#include "regs.h"
+
+SFR(UI_BATT, P_BATT);
+SFR(UI_USBST, P_USB_STAT);
 
 char ti[ID3_W + 1], ar[ID3_W + 1];
 uint8_t volmode, scrub;
@@ -26,10 +30,18 @@ void fill(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint16_t c) { gfx_fill(x, 
 /* the inside of the title bar's battery icon (MUSIC drew the whole icon before chaining here): the
  * charge and the USB bolt, as common/draw.c batt_icon (no room for that one here) */
 static const uint8_t bolt[] = { 9, 1, 2,  8, 2, 2,  7, 3, 2,  5, 4, 7,  9, 5, 2,  8, 6, 2,  7, 7, 2 };
+/* called on every update() pass: redraws only when the level or USB power changed
+ * (the core's debounced HAL_BATT; a core without EV_BATT leaves it 0: then the ports) */
+uint8_t batt_shown = 0xFF;
 void batt(void)
 {
-    uint8_t s = HAL_BATT, l = s & HAL_BATT_LEVEL, e = BATT_EMPTY_BAT, f = BATT_FULL_BAT, n, i;
+    uint8_t s = HAL_BATT, l, e = BATT_EMPTY_BAT, f = BATT_FULL_BAT, n, i;
     if (!ZCFG_BATT) return;
+    if (!(s & HAL_BATT_VALID)) s = (UI_BATT & BATT_LEVEL) | (UI_USBST & USBST_VBUS ? HAL_BATT_VBUS : 0);
+    s &= HAL_BATT_LEVEL | HAL_BATT_VBUS;
+    if (s == batt_shown) return;
+    batt_shown = s;
+    l = s & HAL_BATT_LEVEL;
     if (s & HAL_BATT_VBUS) { e = BATT_EMPTY_USB; f = BATT_FULL_USB; }
     n = l < e ? 0 : l >= f ? 13 : (uint8_t)((uint8_t)((l - e + 1) * 13) / (uint8_t)(f - e + 1));
     fill(BATT_ICON_X + 1, BATT_ICON_Y + 1, 15, 7, C_BAR);
@@ -92,6 +104,7 @@ void scroll(void)
 void screen(void)
 {
     fill(0, SKIN_TITLE_H, LCD_W, LCD_H - SKIN_TITLE_H, C_BG);
+    batt_shown = 0xFF;
     batt();
     soff = 0; spause = SCR_PAUSE; stick = hal_ticks();
     lines();

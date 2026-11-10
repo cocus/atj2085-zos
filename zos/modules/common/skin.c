@@ -124,17 +124,31 @@ void skin_batt(void)
     if (ZCFG_BATT) batt_icon(BATT_ICON_X, BATT_ICON_Y, sk.fg, sk.bar);
 }
 
+/* EV_BATT (core), or on the 2 Hz tick a change the core did not report (a core without EV_BATT):
+ * USB power plugged / unplugged, or the level moved by 2+ steps from what is drawn */
+static void batt_check(const event_t *e)
+{
+    uint8_t s, d;
+    if (e->type == EV_SECOND_HALF) {
+        s = batt_state();
+        d = (s & HAL_BATT_LEVEL) - (batt_drawn & HAL_BATT_LEVEL);
+        if ((int8_t)d < 0) d = -d;
+        if (!((s ^ batt_drawn) & HAL_BATT_VBUS) && d < 2) return;
+    } else if (e->type != EV_BATT) return;
+    skin_batt();
+}
+
 uint8_t skin_wait(event_t *e, uint16_t timeout)
 {
     uint8_t r = ev_wait(e, timeout);
-    if (r && e->type == EV_BATT) skin_batt();
+    if (r) batt_check(e);
     return r;
 }
 
 uint8_t skin_get(event_t *e)
 {
     uint8_t r = ev_get(e);
-    if (r && e->type == EV_BATT) skin_batt();
+    if (r) batt_check(e);
     return r;
 }
 

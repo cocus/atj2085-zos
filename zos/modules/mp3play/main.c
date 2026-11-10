@@ -99,6 +99,7 @@ static void update(void)
     char t[8];
     uint16_t now = scrub ? target : mp3.base_s + mp3.now_s, tot = mp3.total_s;
     uint8_t i, w, hrs = tot >= 3600, n = hrs ? 7 : 5;
+    batt();                                            /* (redraws only on a change) */
     tfmt(t, now, hrs);
     for (i = 0; i < n; i++)
         if (t[i] != big[i]) {
@@ -255,7 +256,7 @@ uint16_t mod_main(void)
         ev = key;
         key.type = EV_NONE;
         if (ev.type == EV_POWER) { MOD_POWER_REQ = 1; break; }
-        if (ev.type == EV_BATT) batt();
+        if (ev.type == EV_BATT) { batt_shown = 0xFF; batt(); }
         else if (ev.type == EV_KEY_UP) {
             if (!volmode && (ev.code == KEY_LEFT || ev.code == KEY_RIGHT)) lr_release(ev.code);
         } else if (ev.type == EV_KEY_DOWN || ev.type == EV_KEY_REPEAT) {
