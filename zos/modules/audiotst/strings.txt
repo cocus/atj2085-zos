@@ -1,0 +1,17 @@
+# ID | English | Spanish   (menu rows: 15 chars max (value at x 100), titles: 14 (battery icon), lines: 20)
+TITLE    | AUDIO TEST           | PRUEBA AUDIO
+TONE     | TONE GENERATOR       | GENERADOR TONOS
+MIC      | MIC: METER+REC       | MIC: NIVEL+GRAB
+FM       | FM: METER+REC        | FM: NIVEL+GRAB
+WPF      | DAC WORDS/FRAME      | DAC PAL/TRAMA
+PORTS    | PORT DUMP            | VER PUERTOS
+T_TONE   | TONE                 | TONO
+T_MIC    | MICROPHONE           | MICROFONO
+T_FM     | FM RADIO             | RADIO FM
+T_PORTS  | ENTRY / NOW          | INICIO / AHORA
+PAGE     | PAGE                 | PAGINA
+LOW      | KEEP VOLUME LOW      | VOLUMEN BAJO
+ENTRY    | ENTRY=STOCK STATE    | INICIO=ESTADO STOCK
+NOMOD    | MODULE MISSING       | FALTA EL MODULO
+FT_MENU  | << >> MOVE PLAY:GO   | << >>:ELIGE PLAY:VA
+FT_PORTS | PLAY:NEW  MENU:BACK  | PLAY:LEE MENU:ATRAS

@@ -38,7 +38,8 @@ static const struct { char name[9]; uint8_t cat; } known[] = {
     { "SNAKE", CAT_GAMES }, { "HOPBOT", CAT_GAMES }, { "KLONDIKE", CAT_GAMES },
     { "SPIDER", CAT_GAMES }, { "MINES", CAT_GAMES }, { "SHELL", CAT_HIDDEN }, { "MP3PLAY", CAT_HIDDEN },
     { "DECPLAY", CAT_HIDDEN }, { "DECINFO", CAT_HIDDEN }, { "RECRUN", CAT_HIDDEN },
-    { "USBDISK", CAT_HIDDEN }, { "USBCON", CAT_HIDDEN }, { "USBAUDIO", CAT_HIDDEN } };   /* USB's */
+    { "USBDISK", CAT_HIDDEN }, { "USBCON", CAT_HIDDEN }, { "USBAUDIO", CAT_HIDDEN },   /* USB's */
+    { "ATTONE", CAT_HIDDEN }, { "ATREC", CAT_HIDDEN } };   /* AUDIOTST's */
 
 #define MAXMOD 24
 typedef struct { char name11[12]; char label[9]; uint8_t cat; } mod_t;
