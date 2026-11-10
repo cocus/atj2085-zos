@@ -63,7 +63,7 @@ CPU_HZ = 12_000_000     # GUESS: only used to pace the RTC tick; real clock is P
 
 class ATJ2085:
     def __init__(self, fw, log=print, brec=None, trace_syscalls=True, disk=None, dsp=None,
-                 nand=None, nand_overlay=None, nand_cache=None):
+                 nand=None, nand_overlay=None, nand_cache=None, tuner=None):
         self.fw = fw
         self.log = log
         self.m = z80.Z80Machine()
@@ -103,6 +103,11 @@ class ATJ2085:
         self.usb_cable = False      # set_usb(True/False) injects a USB plug/unplug
         self.keys = 0               # bitmask of pressed emulated buttons (see keys.py)
         self.key_model = KeyModel()
+        # optional FM tuner on the GPIO C bit-banged I2C bus (emu/i2cbus.py): 'tea' or 'rda'
+        self.i2c = None
+        if tuner:
+            from .i2cbus import I2CBus
+            self.i2c = I2CBus(self, tuner, log=log)
         self.rtc_next = 0
         self.rtc_fast_period = CPU_HZ // 100     # GUESS 10 ms
         self.rtc_slow_div = 50                  # GUESS: bit0 every 0.5 s
@@ -634,6 +639,8 @@ class ATJ2085:
             # USB_STATUS bit 6 = cable/VBUS present (kernel 0x2F38 polls it; the device posts
             # system message 0x91 on plug, 0x92 on unplug - confirmed on hardware)
             v = (self.ports[0x50] & ~0x40) | (0x40 if self.usb_cable else 0)
+        elif p == 0xf4 and self.i2c is not None:
+            v = self.i2c.port_in(self.ports[0xf4])
         elif p == 0xf2 and self.key_model:
             v = self.key_model.port_in(self, p)
         elif self.nand is not None and p == 0x28:
@@ -668,6 +675,8 @@ class ATJ2085:
                 self.dsp.mcu_out(p, v)
         elif self.nand is not None and p in (0x2a, 0xcc):
             self.nand.port_out(p, v)
+        if self.i2c is not None and p in (0xf3, 0xf4):
+            self.i2c.pins_changed()
         if self.key_model and p in (0xee, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xfe, 0xff, 0xef, 0xc1):
             self.key_model.port_out(self, p, v)
 

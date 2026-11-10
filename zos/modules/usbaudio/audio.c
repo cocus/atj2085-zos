@@ -113,11 +113,10 @@ static uint8_t i2c_write(uint8_t value)
 }
 
 /* the FM module's station (FM_STATE, same layout as modules/fm): tuned here too, << >> while running */
-typedef struct { uint8_t magic, vol; uint16_t f10; } fm_state_t;
-static __at(FM_STATE) fm_state_t fmst;
-#define FM_MAGIC  0xF4
-#define FREQ_MIN  875
-#define FREQ_MAX  1080
+#include "../common/fmstate.h"
+#define fmst      (*FMST)
+#define FREQ_MIN  FM_FREQ_MIN
+#define FREQ_MAX  FM_FREQ_MAX
 uint16_t audio_f10 = 987;                  /* 100 kHz units */
 
 static void radio_tune(uint8_t standby)

@@ -1,6 +1,7 @@
 """Run zos in atj2085emu on the real NAND dump (zos' own NAND/FTL driver, no stock storage code).
 
 usage: emu_nand_zos.py OUTDIR "t:KEY:ms,..." "t:shot.png,..." [--ticks N] [--overlay OVL] [--inject-at T]
+                      [--tuner tea|rda|none] [--save-overlay OVL2]
 
 Boots the stock firmware from the s1clone dump (+ overlay, e.g. from lisong_rebuild/tools/nandinject.py
 holding the .ZM modules), and at --inject-at (default 300 M T-states, main menu) loads
@@ -28,11 +29,15 @@ def main():
     ap.add_argument('--inject-at', type=int, default=300_000_000)
     ap.add_argument('--dump', default=os.path.join(ROOT, 'readback-my-ximpro.s1clone'))
     ap.add_argument('--wav', default=None, help='write the DSP model PCM output here')
+    ap.add_argument('--tuner', choices=('tea', 'rda', 'none'), default=None,
+                    help='FM tuner model on the GPIO C I2C bus (emu/i2cbus.py)')
+    ap.add_argument('--save-overlay', default=None,
+                    help='write the NAND overlay (zos writes, e.g. ZOS.CFG) here at the end')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     logf = open(os.path.join(a.out, 'run.log'), 'w')
     emu = ATJ2085(FwImage(os.path.join(ROOT, 'my-ximpro.fw')), log=lambda s: logf.write(s + '\n'),
-                  nand=a.dump, nand_overlay=a.overlay, nand_cache=os.path.join(EMU, 'work', 'nandcache'))
+                  nand=a.dump, nand_overlay=a.overlay, nand_cache=os.path.join(EMU, 'work', 'nandcache'), tuner=a.tuner)
     sink = AudioSink(a.wav, live=False, log=lambda s: logf.write(s + '\n')) if a.wav else None
     emu.dsp = DspHLE(emu, sink, pacing='emu', log=lambda s: logf.write(s + '\n'))
     ap_img = open(os.path.join(HERE, '..', 'out', 'atj2085', 'ZOS.AP'), 'rb').read()
@@ -66,6 +71,8 @@ def main():
         logf.write('  %9d %s\n' % (t, ev))
     if sink is not None:
         sink.close()
+    if a.save_overlay:
+        emu.nand.save_overlay(a.save_overlay)
     logf.close()
     pngout.save_lcd(emu.lcd, os.path.join(a.out, 'end.png'))
 

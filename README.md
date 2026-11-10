@@ -36,7 +36,7 @@ zos, and the hardware research notes behind all of it.
 | OGG / WAV | Ogg Vorbis (title/artist from Vorbis comments) and WAV (IMA ADPCM or 16-bit PCM, mono/stereo, 8-48 kHz) via `DECPLAY.ZM`/`DECINFO.ZM` on the stock `OGGDEC.DSP`/`PCMDEC.DSP` from your firmware | device |
 | Recorder | microphone -> IMA ADPCM WAV (`RECnnn.WAV` in the disk root) at 16 / 22.05 / 32 kHz through the stock `ADENCM.DSP`; live level meter, `<<` `>>` mic gain, VOL picks the rate (`REC.ZM` + `RECRUN.ZM`) | emulator; device (being tested) |
 | Firmware | `FIRMWARE.ZM`: back up the firmware area to `FIRMWARE.FW` on the disk (read back and compared); update from `UPDATE.FW` with the same checks the boot record does, write copy A, read back (see [Safety](#safety-read-this-first)) | backup: device; update: **emulator only** |
-| FM radio | TEA5767 tuner over bit-banged I2C, tune/seek, volume, optional USB audio output | device (tuner-dependent) |
+| FM radio | TEA5767 or RDA5807 tuner (probed) over bit-banged I2C, tune/seek, RDS name + RadioText (RDA), volume, station kept in `ZOS.CFG`, optional USB audio output | device (TEA); RDA emulator only |
 | USB | full-speed device stack: mass storage (read/write), CDC-ACM debug console, USB Audio Class capture (mic / FM) | emulator; partly device |
 | Settings | language, contrast, backlight timeout, battery icon, key beep, stored in `ZOS.CFG` | device |
 | Power | standby like stock (long PLAY), wake by PLAY or USB | device + emulator |

@@ -1,4 +1,4 @@
-/* I2C bus scan + TEA5767 FM tuner test.
+/* I2C bus scan + TEA5767 FM tuner test (+ RDA5807 chip ID when 0x11 answers: rda_id()).
  *
  * Mechanism (see lisong_rebuild/analysis/i2c.md): the board's FM tuner (TEA5767, I2C 0x60) is
  * bit-banged by the stock FMRADIO.AP on GPIO C, NOT through the 0x7A-0x7C hardware I2C block:
@@ -377,6 +377,32 @@ static void diag_screen(void)
     gfx_text(4, y, "PAIRS: ST CT PER STEP", 1, C_DIM, C_BG);
 }
 
+/* ---- RDA5807 (answers 0x10 sequential, 0x11 random access, 0x60 TEA mode; lisong_rebuild/analysis/ogg_rec_rds.md 3.5) ---- */
+#define RDA_SEQ 0x10
+#define RDA_RND 0x11
+static void hex4(uint8_t x, uint8_t y, const uint8_t *v, uint16_t fg) { hex2(x, y, v[0], fg); hex2(x + 12, y, v[1], fg); }
+
+/* random read of 00h (CHIPID, 0x58xx) through 0x11 with a repeated START, then a sequential read
+ * at 0x10 (starts at 0Ah: status 0Ah/0Bh, RDS blocks 0Ch/0Dh) as the cross-check */
+static void rda_id(uint8_t y)
+{
+    uint8_t v[8], i, ok;
+    i2c_start();
+    ok = i2c_wr(RDA_RND << 1) && i2c_wr(0x00);
+    if (ok) { i2c_start(); ok = i2c_wr((RDA_RND << 1) | 1); }
+    if (ok) { v[0] = i2c_rd(0); v[1] = i2c_rd(1); }
+    i2c_stop();
+    gfx_text(4, y, "RDA ID", 1, C_DIM, C_BG);
+    if (!ok) { gfx_text(4 + 7 * 6, y, "NACK", 1, C_SEL, C_BG); return; }
+    hex4(4 + 7 * 6, y, v, v[0] == 0x58 ? C_OK : C_SEL);
+    gfx_text(4 + 12 * 6, y, v[0] == 0x58 ? "RDA580X" : "?", 1, v[0] == 0x58 ? C_OK : C_SEL, C_BG);
+    i2c_start();
+    ok = i2c_wr((RDA_SEQ << 1) | 1);
+    if (ok) for (i = 0; i < 8; i++) v[i] = i2c_rd(i == 7);
+    i2c_stop();
+    if (ok) for (i = 0; i < 4; i++) hex4(4 + i * 30, y + 10, v + i * 2, C_FG);
+}
+
 static uint8_t found[16];                       /* bitmap of acking 7-bit addresses */
 static uint8_t nfound;
 
@@ -416,6 +442,7 @@ static void scan_screen(void)
         if (x > 100) { x = 4; y += 10; if (y > 90) break; }
     }
     if (!n) gfx_text(4, 50, "NO DEVICES (CHECK FM)", 1, C_SEL, C_BG);
+    if (!hw && (found[RDA_RND >> 3] & (1 << (RDA_RND & 7)))) rda_id(92);   /* RDA580x: chip ID */
     show_diag(102);
 }
 

@@ -311,6 +311,37 @@ Write order, so that a crash never corrupts existing data:
   100 B ≈ **0.7-0.9 KB** in the FM page module. Effort 1-2 days after the chip is confirmed.
 * Keep the TEA path as the fallback for boards that only ACK 0x60.
 
+### 3.5 zos implementation (FM module, 2026-11-10; emulator-verified, device-untested)
+Files: `zos/modules/fm/tuner.c` (I2C + both drivers), `rds.c` (decoder), `main.c` (UI); emulator model
+`atj2085emu/emu/i2cbus.py` (`--tuner tea|rda|none` in `headless.py` and `zos/tools/emu_nand_zos.py`).
+* **Probe** (after the 200 ms pin settle): random read of 00h at 0x11 (START 0x22, 0x00, repeated START 0x23,
+  2 bytes, STOP); high byte 0x58 and an ACK for a sequential read at 0x10 (0x21) = RDA, native mode. Else an
+  ACK at 0x60 = TEA5767 (5-byte frames, unchanged). Else "NO TUNER". An RDA is never driven through 0x60.
+* **Init:** 02h = DHIZ|DMUTE|SOFT_RESET|ENABLE (0xC003), 50 ms, 02h = DHIZ|DMUTE|RDS_EN|NEW_METHOD|ENABLE
+  (0xC00D), 04h = 0x0800 (DE: 50 us, as the TEA path's DTC=0), 05h = 0x888F (INT_MODE, SEEKTH 8, LNA_PORT_SEL
+  LNAP, VOLUME 15 = max; the PA volume stays the user control). All writes: random access at 0x11
+  (index, then big-endian words). Power down: 02h = 0 (ENABLE 0, DHIZ 0 = outputs high-Z).
+* **Tune:** 03h = (f - 87.0 MHz)/100 kHz << 6 | TUNE (0x10); BAND 00 = 87-108, SPACE 00 = 100 kHz.
+  **Seek:** 02h |= SEEK (0x100) | SEEKUP (0x200), SKMODE 0 = wrap; poll every 30 ms; READCHAN (0Ah 9-0) moves
+  the frequency display; STC (0Ah b14) = done, SF (b13) = failed; a key writes 02h without SEEK and retunes to
+  the shown channel.
+* **Status** (sequential read at 0x10 starts at 0Ah): 0Ah b15 RDSR, b14 STC, b13 SF, b12 RDSS, b11 BLK_E,
+  b10 ST, b9-0 READCHAN; 0Bh b15-9 RSSI (0-127; bars use RSSI/8 as the TEA 0-15 level), b8 FM_TRUE,
+  b7 FM_READY, b4 ABCD_E, b3-2 BLERA, b1-0 BLERB (0 = clean, 1 = 1-2 corrected, 2 = 3-5, 3 = uncorrectable).
+* **RDS:** every 40 ms read 0Ah's high byte; only with RDSR set continue to 12 bytes (0Ah-0Fh = status +
+  blocks A-D). Drop groups with BLERB > 1 and back-to-back identical reads; PI from A only with BLERA <= 1
+  (a new PI clears everything). The M reports no error level for C/D, so a PS / RT segment is accepted only
+  when two separate groups carry the same characters. 0A/0B: PS segment = B b1-0, chars in D, shown when all
+  4 segments are confirmed (PI shown until then). 2A: segment B b3-0, 4 chars C+D (64); 2B: 2 chars in D (32);
+  A/B flag B b4 toggles = new text. CR (0x0D) ends the text. Display: lower case to capitals, the EBU accented
+  Latin letters (0x80-0x9F, 0xC0-0xDF) to their base capitals, other chars dropped (font = 0x20-0x5A).
+  Cleared on every tune / seek.
+* **Size:** FM 10425 -> 12905 B code, 755 -> 996 B RAM (13.9 of 16 KB page).
+* **To check on the device:** chip ID value; whether 0x11 random access works on the RRD-102 (some RDA
+  clones only have 0x10: then switch rda_wr to 0x10 sequential writes of 02h..05h); seek speed / SEEKTH 8;
+  whether RDSR clears on read (the decoder tolerates both); audio level vs the TEA at volume 15; DE 50/75 us
+  (Chile and the Americas use 75 us: 04h = 0); I2C timing (~100 kHz bit-bang, unchanged).
+
 ## Sources (web, for the RDA5807 facts)
 * [RDA5807SP ProgManual 2.5](https://www.mikrocontroller.net/attachment/247637/RDA5807SP_ProgManual_2.5.pdf) (addresses 0x20/0x22/0xC0, chip ID 0x5804)
 * [RDA5807P ProgManual 1.0](https://www.mikrocontroller.net/attachment/247618/RAD5807P_ProgManual_1.0.pdf) (RDA mode vs TEA5767 mode by I2C address)

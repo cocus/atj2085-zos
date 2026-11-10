@@ -20,6 +20,7 @@
 #include "../common/usb/usbsh.h"
 #include "../common/draw.h"
 #include "../common/cfg.h"
+#include "../common/fmstate.h"
 #include "icons.h"
 #include "strings.h"
 #include "regs.h"
@@ -251,6 +252,7 @@ uint16_t mod_main(void)
     int8_t m;
     if (!fat_mount()) return MOD_REBOOT;
     if (ZCFG->magic != ZCFG_MAGIC) { cfg_load(); hal_lcd_contrast(ZCFG->contrast); }
+    else if (FMST_DIRTY) cfg_save();                   /* back from FM / USBAUDIO: new station */
     skin_load();
     scan();
     build_items();
