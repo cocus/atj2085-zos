@@ -87,6 +87,29 @@ logic + BOOT.CFG; M4 flash through FIRMWARE BREC UPDATE (exists), recovery via R
 * **Payloads for ZOS / the extra item**: preferred = raw NAND slots written with the PC tool (no FAT code in the BREC);
   alternative = FAT16 files from the user disk (zosboot has the code) if space allows. Decide after the size budget.
 
+## 1.3 USB item = the BROM's own ADFU (user, 2026-11-10: "or maybe expose it in DFU mode, whatever is smaller and easier")
+
+This SUPERSEDES the raw-NAND MSC of 1.2 for the first milestones. The BROM contains a complete vendor ADFU server
+(ROM 0x9000-0x9BFF, usb_msc.md 4.2: waits for VBUS, 48 MHz, enumerates VID 10D6 PID FF51 class FF/FF/FF, bulk 0x01 OUT /
+0x82 IN, commands 0x05 memory read/write, 0x10 jump, 0x16 reset). The BROM runs it when no BREC can be loaded; the USB
+menu item simply **jumps into it**: map the BROM at 0x8000 (ports 01=02=0, i.e. not CE3), copy 0xC00 bytes ROM 0x9000 ->
+RAM 0x0000 from a tiny copier that runs from ZRAM2 (0x4000; it must not run from the area it overwrites), reproduce the
+BROM's entry state (the 0x8030 reset code: 4E watchdog, 04, di, im 1, 27=0, 42=0x80, 70|=0x30, 05=0xF7, sp=0x0100, 00=0x10)
+and `jp 0x0200` (the ADFU entry). ~40-60 bytes of BREC code, no USB stack in the BREC at all.
+* PC side: the existing tools already speak it (s1clone: full NAND dump/restore incl. spare; s1res/giveio; our
+  `lisong_rebuild/tools/s1clone.py`, `s1flash.py`). The host uploads the ADFU server (`ADFUS.BIN`, 9216 B, an AFI part of
+  the user's own firmware: vendor code, never committed; tools extract it from the user's .fw like build.py does for DSP
+  files). `newbrec/tools/` only needs thin wrappers (extract ADFUS.BIN from a .fw, dump/restore/flash-brec helpers) on top
+  of the existing protocol code.
+* The device looks like a ROM-recovery unit on the PC (10D6:FF51): same drivers the user already has (libusb/WinUSB).
+* Leaving: reset command (0x16) or unplug + power cycle; there is no way back to the menu without a reset (acceptable).
+* The own raw-NAND MSC of 1.2 becomes optional/later (only worth it if a driver-less file-level or raw LUN is wanted).
+  Normal user-disk access stays with zos's USB module and the stock firmware.
+* Risks to verify in the emulator: does the emulator model the BROM ROM at 0x8000 for BREC (ports 01/02) and its ADFU
+  code with a host model? (the recovery path is reachable in the emulator when no BREC loads: `brom_load_brec` stops with
+  "ROM recovery"; the same ROM code can be entered from a running BREC); does the ADFU entry need anything else set
+  by the 0x8030 reset code (clock, pull-up 0x3E, watchdog)?
+
 ## 2. Two layers (OBSOLETE: superseded by 1.1; kept for the reasoning)
 
 **Layer 1: boot menu as stage 0 in SYSCFG.SYS** (extends zosboot; no BREC write needed, flashable with s1res):
