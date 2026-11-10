@@ -12,13 +12,14 @@ picture (stock: an hourglass) before it mounts the NAND and loads the OS. This t
   * writes a preview PNG of the boot screen as the user sees it (128 x 128 visible part of the\r
     132 x 132 GRAM, glass mounted rotated 180 degrees; the picture is stored rotated accordingly).
 
-Optional, opt-in (README "Faster boot"): --fast-boot skips the per-file firmware sums on normal
-boots (full checks stay whenever copy A and B differ or A's header/directory is bad), --fast-lcd
-shortens the two waits before backlight-on, --fast = both, --keep-screen leaves the picture alone.
+Fast boot is the DEFAULT (README "Faster boot"): the per-file firmware sums are skipped on normal
+boots (full checks stay whenever copy A and B differ or A's header/directory is bad) and the two
+waits before backlight-on are shortened. --stock-boot keeps both stock (--no-fast-boot /
+--no-fast-lcd: one of them); --keep-screen leaves the colour and picture alone.
 
 usage:
-  brecpatch.py IN [-o OUT.BIN] [--fill RRGGBB] [--image FILE] [--keep-screen] [--fast-boot]
-               [--fast-lcd] [--fast] [--preview P.png] [--fw-out OUT.fw]
+  brecpatch.py IN [-o OUT.BIN] [--fill RRGGBB] [--image FILE] [--keep-screen] [--stock-boot]
+               [--no-fast-boot] [--no-fast-lcd] [--preview P.png] [--fw-out OUT.fw]
   brecpatch.py IN --check                     report what is found (nothing written)
   brecpatch.py IN --restore-check ORIG        compare IN with ORIG: only fill/bitmap/sum may differ
 IN / ORIG: a raw 16384-byte BREC, an AFI .fw (its BREC*.BIN part) or an s1clone NAND dump
@@ -461,11 +462,15 @@ def main(argv=None):
     ap.add_argument('--preview', help='write a preview PNG of the boot screen as seen on the 128x128 glass (x3)')
     ap.add_argument('--fw-out', help='also write a copy of the input .fw with the patched BREC part')
     ap.add_argument('--keep-screen', action='store_true', help='do not change fill colour / picture')
-    ap.add_argument('--fast-boot', action='store_true',
-                    help='skip the per-file firmware sums on normal boots (see README: what is lost)')
-    ap.add_argument('--fast-lcd', action='store_true',
-                    help='shorten the two waits before backlight-on (200+100 -> 1+1 units)')
-    ap.add_argument('--fast', action='store_true', help='= --fast-boot --fast-lcd')
+    # fast boot is the default (README "Faster boot": a corrupted file body in copy A is no longer
+    # detected / healed from copy B); --stock-boot keeps the stock checks and waits
+    ap.add_argument('--stock-boot', action='store_true',
+                    help='keep the per-file firmware sums and the backlight-on waits (no fast boot)')
+    ap.add_argument('--no-fast-boot', action='store_true', help='keep the per-file firmware sums only')
+    ap.add_argument('--no-fast-lcd', action='store_true', help='keep the backlight-on waits only')
+    ap.add_argument('--fast-boot', action='store_true', help=argparse.SUPPRESS)   # (default now; kept for old command lines)
+    ap.add_argument('--fast-lcd', action='store_true', help=argparse.SUPPRESS)
+    ap.add_argument('--fast', action='store_true', help=argparse.SUPPRESS)
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--restore-check', metavar='ORIG')
     a = ap.parse_args(argv)
@@ -494,8 +499,8 @@ def main(argv=None):
             return 0
         nb = bytearray(b)
         what = []
-        if a.fast:
-            a.fast_boot = a.fast_lcd = True
+        a.fast_boot = not (a.stock_boot or a.no_fast_boot)
+        a.fast_lcd = not (a.stock_boot or a.no_fast_lcd)
         if a.fast_boot:                                    # before the picture: checks the free bytes
             if patch_fastboot(nb, find_fastboot(b, info)):
                 what.append('fast boot')
