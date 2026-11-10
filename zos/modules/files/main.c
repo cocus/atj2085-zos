@@ -101,7 +101,7 @@ static void readall(const fat_dirent_t *e)
     gfx_text(4, 78, "KB/S", 1, C_DIM, C_BG);
     gfx_num(40, 78, dt ? (uint16_t)(((total >> 10) * 100UL) / dt) : 0, 1, C_OK, C_BG);
     skin_footer(T(S_BACK));
-    do ev_wait(&ev, 0); while (ev.type != EV_KEY_DOWN);
+    do skin_wait(&ev, 0); while (ev.type != EV_KEY_DOWN);
 }
 
 uint16_t mod_main(void)
@@ -111,13 +111,13 @@ uint16_t mod_main(void)
     skin_load();
     gfx_fill(0, 0, LCD_W, LCD_H, C_BG);
     skin_title(T(S_TITLE));
-    if (!fat_mount()) { gfx_text(4, 20, T(S_NODISK), 1, C_SEL, C_BG); ev_wait(&e, 200); return 1; }
+    if (!fat_mount()) { gfx_text(4, 20, T(S_NODISK), 1, C_SEL, C_BG); skin_wait(&e, 200); return 1; }
     depth = 0;
     fat_root(&dirs[0]);
     load();
     draw();
     for (;;) {
-        ev_wait(&e, 0);
+        skin_wait(&e, 0);
         if (e.type != EV_KEY_DOWN && e.type != EV_KEY_REPEAT) continue;
         old = sel;
         if (e.code == KEY_RIGHT && sel + 1 < n) sel++;

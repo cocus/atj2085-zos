@@ -318,7 +318,7 @@ static void seek(void)
     do {
         tune(st.f10 + 1);
         wait_ticks(3);
-        if (ev_get(&e) && (e.type == EV_KEY_DOWN || e.type == EV_POWER)) {
+        if (skin_get(&e) && (e.type == EV_KEY_DOWN || e.type == EV_POWER)) {
             if (e.type == EV_POWER) MOD_POWER_REQ = 1;
             break;
         }
@@ -354,7 +354,7 @@ uint16_t mod_main(void)
         if ((uint16_t)(hal_ticks() - t_st) >= 30) { t_st = hal_ticks(); draw_status(); }  /* 300 ms */
         draw_usb();
         hal_watchdog();
-        if (!ev_get(&e)) continue;
+        if (!skin_get(&e)) continue;
         if (e.type == EV_POWER) MOD_POWER_REQ = 1;           /* SHELL powers off */
         if (e.type == EV_QUIT || MOD_POWER_REQ) break;
         if (e.type != EV_KEY_DOWN && e.type != EV_KEY_REPEAT) continue;

@@ -69,7 +69,7 @@ static uint8_t wait_play_or_menu(void)
 {
     event_t e;
     for (;;) {
-        ev_wait(&e, 0);
+        skin_wait(&e, 0);
         rnd += hal_ticks();
         if (e.type == EV_KEY_DOWN && (e.code == KEY_PLAY || e.code == KEY_MENU)) return e.code;
     }
@@ -94,7 +94,7 @@ again:
     for (;;) {
         next += 16 - (score > 18 ? 9 : score / 2);          /* 160 .. 70 ms per move */
         while ((int16_t)(next - hal_ticks()) > 0) {
-            if (!ev_wait(&e, next - hal_ticks())) break;
+            if (!skin_wait(&e, next - hal_ticks())) break;
             if (e.type != EV_KEY_DOWN) continue;
             if (e.code == KEY_MENU) return;
             if (e.code == KEY_RIGHT) dir = (dir + 1) & 3;

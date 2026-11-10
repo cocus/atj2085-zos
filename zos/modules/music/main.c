@@ -232,7 +232,7 @@ uint16_t mod_main(void)
     if (!skin_load() && !fat_mount()) {
         gfx_fill(0, 0, LCD_W, LCD_H, C_BG);
         gfx_text(4, 20, T(S_NODISK), 1, C_SEL, C_BG);
-        ev_wait(&e, 200);
+        skin_wait(&e, 200);
         return 1;
     }
     if (S->magic != MUS_MAGIC) {                       /* from the shell: root folder ... */
@@ -263,7 +263,7 @@ uint16_t mod_main(void)
     if (S->sel >= n) S->sel = S->top = 0;
     list();
     for (;;) {
-        if (!ev_wait(&e, n && strlen(ents[S->sel].name) > NAMEW ? SCR_TICKS : 0)) { scroll(); continue; }
+        if (!skin_wait(&e, n && strlen(ents[S->sel].name) > NAMEW ? SCR_TICKS : 0)) { scroll(); continue; }
         if (e.type == EV_KEY_DOWN) beep();             /* key beep (SETTINGS) */
         if (e.type == EV_POWER) { MOD_POWER_REQ = 1; break; }
         if (e.type != EV_KEY_DOWN && e.type != EV_KEY_REPEAT) continue;

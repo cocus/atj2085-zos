@@ -10,7 +10,10 @@
 
 #define MAXMODS 20
 #define ROWS 8
-static char names[MAXMODS][12];
+/* the names live in the page modules' ZRAM1 scratch (HAL_MODRAM, below the games' scores at its
+ * last 32 bytes), not in core RAM: a module run may overwrite them, so the disk is read again after
+ * every run */
+static __at(HAL_MODRAM_END - 32 - MAXMODS * 12) char names[MAXMODS][12];   /* absolute: no storage */
 static uint8_t nmods, mounted, top;
 
 static void name83(char *t, const char *n)
@@ -87,6 +90,8 @@ void app_modules(void)
             while (err == MOD_OK && mod_run(hal_pages[0], &hdr) == MOD_CHAIN)
                 err = mod_load(MOD_CHAIN_NAME, hal_pages[0], &hdr);
             msg = err == MOD_OK ? 0 : mod_errstr[err];
+            scan();                              /* (names: see above) */
+            if (sel >= nmods) sel = 0;
             draw(sel, msg);
         }
     }

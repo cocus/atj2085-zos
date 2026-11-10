@@ -76,7 +76,7 @@ uint8_t gm_key(void)
 {
     event_t e;
     for (;;) {
-        ev_wait(&e, 0);
+        skin_wait(&e, 0);
         gm_seed(hal_ticks());
         if (e.type == EV_POWER) { MOD_POWER_REQ = 1; return GM_POWER; }
         if (e.type == EV_KEY_DOWN) { beep(); return e.code; }

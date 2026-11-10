@@ -194,7 +194,7 @@ uint16_t mod_main(void)
             vu_bar(4, REC_Y_VU, vu_level(), C_DIM);
         }
         hal_watchdog();
-        if (!ev_get(&e)) continue;
+        if (!skin_get(&e)) continue;
         if (e.type == EV_POWER) { mon_off(); MOD_POWER_REQ = 1; return 0; }
         if (e.type != EV_KEY_DOWN && e.type != EV_KEY_REPEAT) continue;
         if (e.code == KEY_LEFT || e.code == KEY_RIGHT) {     /* gain, live (as AUDIOTST) */

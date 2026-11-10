@@ -278,7 +278,7 @@ static uint8_t game(void)
         hal_watchdog();
         for (;;) {                       /* events until the next frame is due (late: the queued ones) */
             int16_t w = (int16_t)(next - hal_ticks());
-            if (w > 0 ? !ev_wait(&e, (uint16_t)w) : !ev_get(&e)) break;
+            if (w > 0 ? !skin_wait(&e, (uint16_t)w) : !ev_get(&e)) break;
             if (e.type == EV_POWER) { MOD_POWER_REQ = 1; return 2; }
             k = e.code;
             if (e.type == EV_KEY_DOWN) {
@@ -353,7 +353,7 @@ static uint8_t game(void)
     }
     next = hal_ticks();                                /* half a second to let go of the keys */
     while ((uint16_t)(hal_ticks() - next) < HAL_TICK_HZ / 2) {
-        ev_wait(&e, HAL_TICK_HZ / 2);
+        skin_wait(&e, HAL_TICK_HZ / 2);
         if (e.type == EV_POWER) { MOD_POWER_REQ = 1; return 2; }
     }
     k = gm_key();

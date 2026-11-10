@@ -42,7 +42,7 @@ static void row(uint8_t r)
     case R_BACKLIGHT: gfx_text(VAL_X, y + 4, T(bl_str[ZCFG->backlight]), 1, fg, bg); break;
     default:                                               /* on/off rows */
         gfx_text(VAL_X, y + 4, T(ZCFG->flags & row_flag[r] ? S_ON : S_OFF), 1, fg, bg);
-        if (r == R_BATT && ZCFG_BATT) batt_icon(VAL_X + 24, y + 4, fg, bg);
+        if (r == R_BATT && ZCFG_BATT) batt_icon(VAL_X + 24, y + 2, fg, bg);
         break;
     }
 }
@@ -83,7 +83,7 @@ uint16_t mod_main(void)
     skin_load();
     screen();
     for (;;) {
-        ev_wait(&e, 0);
+        skin_wait(&e, 0);
         if (e.type == EV_KEY_DOWN) beep();             /* key beep (SETTINGS) */
         if (e.type == EV_POWER) MOD_POWER_REQ = 1;           /* saved below, SHELL powers off */
         if (e.type == EV_QUIT || e.type == EV_POWER) break;

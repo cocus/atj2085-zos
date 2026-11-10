@@ -26,6 +26,10 @@ void skin_title(const char *title)
     gfx_text(LCD_W / 2 - n * (FONT_W / 2), 3, title, 1, skc.c.fg, skc.c.bar);
 }
 
+void skin_batt(void) { }                       /* (no battery icon here) */
+uint8_t skin_wait(event_t *e, uint16_t timeout) { return ev_wait(e, timeout); }
+uint8_t skin_get(event_t *e) { return ev_get(e); }
+
 void skin_footer(const char *text)
 {
     gfx_fill(0, LCD_H - 10, LCD_W, 10, skc.c.bg);

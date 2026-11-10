@@ -10,7 +10,7 @@
 #define MOD_CHAIN_NAME ((const char *)HAL_SHARED)
 #define MOD_REBOOT  0xB007       /* mod_main() result (SHELL): leave zos (reboot into the stock firmware) */
 #define SHELL_STATE (HAL_SHARED + 512 - 16)   /* 16 bytes kept for the SHELL module (uses 0-7) */
-#define FM_STATE    (SHELL_STATE + 8)         /* 8 bytes kept for the FM module */
+#define FM_STATE    (SHELL_STATE + 8)         /* 7 bytes kept for the FM module (the last: HAL_BATT) */
 #define MOD_POWER_REQ (*(volatile uint8_t *)(SHELL_STATE + 7))  /* a module left because of EV_POWER:
                                                 SHELL powers off when it starts (core/event.h) */
 #define MOD_F_ZRAM2 0x80         /* version bit 7: code in the ZRAM2 page (HAL_ZRAM2_*), variables in the

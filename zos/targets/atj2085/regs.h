@@ -279,9 +279,7 @@
 #define MFP_LCD_RESET   0x01    /*   GPO_A0: LCD reset, keep 1 */
 /* ---- power (lisong_rebuild/analysis/power.md) ---------------------------------------------------- */
 #define P_BATT          0xD0    /* bits 3-0 battery level (free running, 1/s), 7-4 USB TX: never write */
-#define BATT_LEVEL      0x0F    /*   0.90 V + 0.04 V/step */
-#define BATT_EMPTY      6       /*   stock icon: < 6 empty, 13+ full */
-#define BATT_FULL       13
+#define BATT_LEVEL      0x0F    /*   0.90 V + 0.04 V/step (icon calibration per board: board.h) */
 #define BATT_OFF        4       /*   below this (no USB cable) zos powers off (stock kernel: 4/5/6) */
 #define BATT_STANDBY_MIN 3      /*   stock standby does not even poll PLAY below this */
 #define P_SARADC        0xD1    /* SAR ADC (LRADC pin, remote control): bit 7 enable; off in standby */

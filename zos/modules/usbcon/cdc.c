@@ -18,6 +18,7 @@
 #include <string.h>
 #include "../common/usb/usb.h"
 #include "../../core/config.h"
+#include "board.h"
 
 SFR(EPIRQ, P_USB_EPIRQ);
 SFR(BR, P_USB_BR);
@@ -136,8 +137,10 @@ static void cmd_batt(void)
     uint8_t raw = port_in(P_BATT), l = raw & BATT_LEVEL;
     puts_("battery: port D0 = "); hex(raw, 2);
     puts_("  level "); dec(l); puts_("/15 = ~"); dec(900 + 40 * l); puts_(" mV");
-    puts_("  (icon: empty < "); dec(BATT_EMPTY); puts_(", full >= "); dec(BATT_FULL); puts_(")");
     nl();
+    puts_("icon scale (board.h): battery "); dec(BATT_EMPTY_BAT); putc_('-'); dec(BATT_FULL_BAT);
+    puts_(", USB power "); dec(BATT_EMPTY_USB); putc_('-'); dec(BATT_FULL_USB);
+    puts_("; debounced state "); hex(HAL_BATT, 2); nl();
     puts_("USB power (port 50 bit 6): "); puts_(port_in(P_USB_STAT) & USBST_VBUS ? "yes" : "no");
     puts_("  (the level reads the charger while it is plugged in)"); nl();
 }

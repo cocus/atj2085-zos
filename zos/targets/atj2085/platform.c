@@ -6,6 +6,7 @@
 #include "../../core/config.h"
 
 #include "regs.h"
+#include "board.h"
 SFR(CLKCTL, P_CLKCTL);
 SFR(EMHI, P_EMHI);
 SFR(PAGE, P_PAGE);
@@ -14,6 +15,8 @@ SFR(GPB_OE, P_GPB_OE);
 SFR(GPB_IE, P_GPB_IE);
 SFR(GPB_D, P_GPB_D);
 SFR(MFP, P_MFP);
+SFR(BATT, P_BATT);
+SFR(USBST, P_USB_STAT);
 
 #define LCD (*(volatile uint8_t *)LCD_DATA)
 
@@ -129,6 +132,29 @@ static void keys_scan(void)
     }
 }
 
+/* ------------------------------------------------------------------------------- battery */
+/* 2 Hz: battery level + USB power into HAL_BATT, debounced (board.h); EV_BATT when it changes.
+ * bcand: the candidate state's level + VBUS (bits 4-0) and how many samples in a row it was seen
+ * (bits 7-5) */
+static uint8_t bcand;
+
+static void batt_sample(void)
+{
+    uint8_t s = (BATT & BATT_LEVEL) | (USBST & USBST_VBUS ? HAL_BATT_VBUS : 0), old = HAL_BATT, d, n;
+    if (s == (old & 0x1F) && (old & HAL_BATT_VALID)) { bcand = 0; return; }
+    if ((bcand & 0x1F) != s) bcand = s;                      /* new candidate, seen once */
+    else if (bcand < 0xE0) bcand += 0x20;
+    n = bcand >> 5;                                          /* repeats after the first sample */
+    d = (s & BATT_LEVEL) - (old & BATT_LEVEL);
+    if ((int8_t)d < 0) d = -d;
+    if (!(old & HAL_BATT_VALID) ||
+        (n >= 1 && (((s ^ old) & HAL_BATT_VBUS) || d >= BATT_HYST_STEPS)) || n >= BATT_SLOW_SAMPLES) {
+        HAL_BATT = s | HAL_BATT_VALID;
+        bcand = 0;
+        ev_post(EV_BATT, 0);
+    }
+}
+
 /* ------------------------------------------------------------------------------- time */
 /* called from the interrupt handler with the RTC status (port 0x44, already acknowledged) */
 void zos_rtc_irq(uint8_t st)
@@ -139,6 +165,7 @@ void zos_rtc_irq(uint8_t st)
     }
     if (st & RTC_HALFSEC) {                 /* 2 Hz */
         ev_post(EV_SECOND_HALF, 0);
+        batt_sample();
         if (ZCFG->magic == ZCFG_MAGIC && ZCFG->backlight && ZCFG->backlight < NBL && !bl_off &&
             ++bl_idle >= bl_halfsecs[ZCFG->backlight])
             bl_off = 1;

@@ -233,7 +233,7 @@ static uint8_t play(void)
     full_redraw();
     for (;;) {
         tick();
-        ev_wait(&e, 1000);
+        skin_wait(&e, 1000);
         tick();
         if (e.type == EV_POWER) { MOD_POWER_REQ = 1; return 0; }
         if (e.type != EV_KEY_DOWN && e.type != EV_KEY_REPEAT) continue;
@@ -264,7 +264,7 @@ static uint8_t play(void)
             if (!deal_row()) {                       /* an empty column: say so for a moment */
                 gfx_fill(0, STAT_Y, LCD_W, 10, CARD_TABLE);
                 gfx_text(2, STAT_Y + 1, T(S_FILL), 1, RGB(255, 210, 0), CARD_TABLE);
-                ev_wait(&e, 150);
+                skin_wait(&e, 150);
                 dirty |= DIRTY_STAT;
             }
         } else if (hsrc != NONE && cur != hsrc && (k == KEY_PLAY || k == KEY_VOL)) {

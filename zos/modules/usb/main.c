@@ -81,7 +81,7 @@ static uint16_t go(void)
     fat_root(&d);
     if (!fat_find(&d, fmod[f], &e)) {
         line(CAB_Y, S_USB, T(S_NOMOD), C_SEL);
-        ev_wait(&ev, 200);
+        skin_wait(&ev, 200);
         return 0;
     }
     if (f == FN_AUDIO) {                         /* USBAUDIO: its own source menu below the title */
@@ -120,7 +120,7 @@ uint16_t mod_main(void)
     }
     menu();
     for (;;) {
-        if (!ev_wait(&e, 50)) {                  /* cable in / out */
+        if (!skin_wait(&e, 50)) {                  /* cable in / out */
             if (((USBST & USBST_VBUS) != 0) != vbus) cable_line();
             continue;
         }

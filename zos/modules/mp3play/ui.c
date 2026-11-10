@@ -8,6 +8,7 @@
 #include "../music/shared.h"
 #include "mp3.h"
 #include "../common/draw.h"
+#include "board.h"
 #define ZS_EXTERN
 #include "strings.h"
 #include "ui.h"
@@ -22,6 +23,21 @@ uint8_t bar_w, vol_shown, paused_shown, mode_shown;
 /* the 6-argument gfx calls cost ~25 bytes each in SDCC: everything goes through these */
 void txt(uint8_t x, uint8_t y, const char *s, uint16_t fg) { gfx_text(x, y, s, 1, fg, C_BG); }
 void fill(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint16_t c) { gfx_fill(x, y, w, h, c); }
+/* the inside of the title bar's battery icon (MUSIC drew the whole icon before chaining here): the
+ * charge and the USB bolt, as common/draw.c batt_icon (no room for that one here) */
+static const uint8_t bolt[] = { 9, 1, 2,  8, 2, 2,  7, 3, 2,  5, 4, 7,  9, 5, 2,  8, 6, 2,  7, 7, 2 };
+void batt(void)
+{
+    uint8_t s = HAL_BATT, l = s & HAL_BATT_LEVEL, e = BATT_EMPTY_BAT, f = BATT_FULL_BAT, n, i;
+    if (!ZCFG_BATT) return;
+    if (s & HAL_BATT_VBUS) { e = BATT_EMPTY_USB; f = BATT_FULL_USB; }
+    n = l < e ? 0 : l >= f ? 13 : (uint8_t)((uint8_t)((l - e + 1) * 13) / (uint8_t)(f - e + 1));
+    fill(BATT_ICON_X + 1, BATT_ICON_Y + 1, 15, 7, C_BAR);
+    fill(BATT_ICON_X + 2, BATT_ICON_Y + 2, n, 5, n <= 4 ? RGB(255, 60, 40) : n <= 8 ? RGB(255, 200, 40) : RGB(80, 220, 80));
+    if (s & HAL_BATT_VBUS)
+        for (i = 0; i < sizeof bolt; i += 3)
+            fill(BATT_ICON_X + bolt[i], BATT_ICON_Y + bolt[i + 1], bolt[i + 2], 1, RGB(255, 255, 255));
+}
 void bar(uint8_t x, uint8_t y, uint8_t w, const uint16_t *rows)
 {
     uint8_t r;
@@ -76,7 +92,7 @@ void scroll(void)
 void screen(void)
 {
     fill(0, SKIN_TITLE_H, LCD_W, LCD_H - SKIN_TITLE_H, C_BG);
-    if (ZCFG_BATT) batt_icon(LCD_W - 18, 4, C_FG, C_BAR);
+    batt();
     soff = 0; spause = SCR_PAUSE; stick = hal_ticks();
     lines();
     txt(4, 78, "/", C_DIM);

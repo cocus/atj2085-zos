@@ -259,7 +259,7 @@ uint16_t mod_main(void)
     redraw();
     if (MOD_POWER_REQ) e.type = EV_POWER; else e.type = EV_NONE;
     for (;;) {
-        if (e.type != EV_POWER) ev_wait(&e, 0);
+        if (e.type != EV_POWER) skin_wait(&e, 0);
         if (e.type == EV_KEY_DOWN) beep();             /* key beep (SETTINGS) */
         if (e.type == EV_POWER) {
             e.type = EV_NONE;

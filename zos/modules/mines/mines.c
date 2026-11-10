@@ -274,7 +274,7 @@ static uint8_t play(void)
             tick();
             if (secs != shown) { shown = secs; status(); }
         }
-        if (!ev_wait(&e, HAL_TICK_HZ / 4)) continue;
+        if (!skin_wait(&e, HAL_TICK_HZ / 4)) continue;
         if (e.type == EV_POWER) { MOD_POWER_REQ = 1; return 0; }
         gm_seed(hal_ticks());
         k = e.code;

@@ -241,7 +241,7 @@ static uint8_t confirm(void)                       /* >> held 2 s = yes, MENU = 
     line(LCD_H - 22, T(S_HOLD), C_SEL);
     skin_footer(T(S_CANCEL));
     for (;;) {
-        ev_wait(&ev, 0);
+        skin_wait(&ev, 0);
         if (ev.type == EV_KEY_DOWN && ev.code == KEY_MENU) return 0;
         if (ev.code != KEY_RIGHT) continue;
         if (ev.type == EV_KEY_DOWN) reps = 0;
@@ -310,14 +310,14 @@ uint16_t mod_main(void)
     menu();
     skin_footer(T(S_FOOTER));
     for (;;) {
-        ev_wait(&ev, 0);
+        skin_wait(&ev, 0);
         if (ev.type != EV_KEY_DOWN) continue;
         if (ev.code == KEY_MENU) return 0;
         if (ev.code == KEY_LEFT || ev.code == KEY_RIGHT) { sel ^= 1; menu(); }
         else if (ev.code == KEY_PLAY) {
             if (!sel) backup();
             else if (update()) {
-                ev_wait(&ev, 150);
+                skin_wait(&ev, 150);
                 return MOD_REBOOT;                 /* BREC refreshes copy B from the new A */
             }
             skin_footer(T(S_FOOTER));

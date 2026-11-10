@@ -60,6 +60,12 @@ void hal_irq_mask(uint8_t set, uint8_t clr);
 #define HAL_MODRAM_END  0x3E00       /* (takeover: stock BREC/kernel RAM up here is not used by zos;
                                         blk.c reads the FTL descriptors at 0x3C80 once, at boot) */
 #define HAL_SHARED      0x3E00       /* 512 B kept across modules (chain name + state), cleared at boot */
+#define HAL_BATT (*(volatile uint8_t *)(HAL_SHARED + 511))   /* battery state for the icon, written by
+                                        the target's 2 Hz interrupt (debounced; EV_BATT on a change):
+                                        0 = not sampled yet (read the ports), else HAL_BATT_* */
+#define HAL_BATT_VALID  0x80
+#define HAL_BATT_VBUS   0x10         /* USB power present (the level then reads the charger) */
+#define HAL_BATT_LEVEL  0x0F         /* ADC level (targets/<t>/board.h: icon calibration) */
 extern const uint8_t hal_pages[];    /* page ids usable for modules */
 extern const uint8_t hal_npages;
 typedef struct { uint16_t dst; const void *src; uint16_t len; } xfer_t;

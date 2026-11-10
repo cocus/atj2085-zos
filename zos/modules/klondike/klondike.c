@@ -256,7 +256,7 @@ static void autofinish(void)
         any = 0;
         for (c = 0; c < 7; c++)
             for (d = SP_F0; d < SP_T0; d++)
-                if (do_move(SP_T0 + c, 1, d)) { any = 1; redraw(); ev_wait(&e, 4); }
+                if (do_move(SP_T0 + c, 1, d)) { any = 1; redraw(); skin_wait(&e, 4); }
     } while (any);
 }
 
@@ -269,7 +269,7 @@ static uint8_t play(void)
     full_redraw();
     for (;;) {
         tick();
-        ev_wait(&e, 1000);
+        skin_wait(&e, 1000);
         tick();
         if (e.type == EV_POWER) { MOD_POWER_REQ = 1; return 0; }
         if (e.type != EV_KEY_DOWN && e.type != EV_KEY_REPEAT) continue;

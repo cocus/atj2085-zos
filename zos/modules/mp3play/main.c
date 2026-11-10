@@ -255,7 +255,8 @@ uint16_t mod_main(void)
         ev = key;
         key.type = EV_NONE;
         if (ev.type == EV_POWER) { MOD_POWER_REQ = 1; break; }
-        if (ev.type == EV_KEY_UP) {
+        if (ev.type == EV_BATT) batt();
+        else if (ev.type == EV_KEY_UP) {
             if (!volmode && (ev.code == KEY_LEFT || ev.code == KEY_RIGHT)) lr_release(ev.code);
         } else if (ev.type == EV_KEY_DOWN || ev.type == EV_KEY_REPEAT) {
             if (ev.code == KEY_MENU) break;

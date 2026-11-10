@@ -3,4 +3,6 @@ TITLE   | SYSTEM                | SISTEMA
 TICKS   | TICKS                 | TICKS
 SECONDS | SECONDS               | SEGUNDOS
 KEYS    | KEY EVENTS            | TECLAS
+BATT    | BATTERY               | BATERIA
+BICON   | ICON STATE            | ICONO
 FOOTER  | MENU: BACK            | MENU: VOLVER

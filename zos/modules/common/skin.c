@@ -112,9 +112,30 @@ void skin_text(uint8_t x, uint8_t y, const char *s, uint16_t fg)
 void skin_title(const char *title)
 {
     uint8_t w = (uint8_t)strlen(title) * FONT_W;
-    if (!skin_draw("TITLE   ZI ", 0, 0, 0)) { ui_header(title); return; }
-    skin_text((LCD_W - w) / 2, 3, title, sk.fg);
-    if (ZCFG_BATT) batt_icon(LCD_W - 18, 4, sk.fg, sk.bar);
+    if (!skin_draw("TITLE   ZI ", 0, 0, 0)) ui_header(title);     /* (no skin: the theme bar, 12 rows) */
+    else
+        skin_text((LCD_W - w) / 2, 3, title, sk.fg);
+    skin_batt();
+}
+
+/* the title bar's battery icon only (EV_BATT: the level or USB power changed) */
+void skin_batt(void)
+{
+    if (ZCFG_BATT) batt_icon(BATT_ICON_X, BATT_ICON_Y, sk.fg, sk.bar);
+}
+
+uint8_t skin_wait(event_t *e, uint16_t timeout)
+{
+    uint8_t r = ev_wait(e, timeout);
+    if (r && e->type == EV_BATT) skin_batt();
+    return r;
+}
+
+uint8_t skin_get(event_t *e)
+{
+    uint8_t r = ev_get(e);
+    if (r && e->type == EV_BATT) skin_batt();
+    return r;
 }
 
 void skin_footer(const char *text)

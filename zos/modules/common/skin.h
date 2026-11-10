@@ -12,6 +12,7 @@
 #define ZOS_SKIN_H
 #include <stdint.h>
 #include "../../hal/hal.h"
+#include "../../core/event.h"
 
 typedef struct { uint16_t bg, fg, dim, sel_top, sel_bot, sel_text, bar; } skin_colors_t;
 extern skin_colors_t sk;
@@ -37,6 +38,13 @@ uint8_t skin_load(void);                                         /* colours; 0 =
 uint8_t skin_draw(const char *name11, uint8_t x, uint8_t y, uint8_t frame);   /* 0 = missing */
 void    skin_text(uint8_t x, uint8_t y, const char *s, uint16_t fg); /* transparent background */
 void    skin_title(const char *title);                           /* title bar + centred title */
+/* battery icon of the title bar (ZCFG battery setting): skin_title() draws it; on EV_BATT (core/
+ * event.h: level / USB power changed) only the icon is redrawn. skin_wait / skin_get = ev_wait /
+ * ev_get that do that themselves (the event is still returned) - use them while the title bar is
+ * on the screen. skinlite.c: no battery icon, plain ev_wait / ev_get. */
+void    skin_batt(void);
+uint8_t skin_wait(event_t *e, uint16_t timeout);
+uint8_t skin_get(event_t *e);
 void    skin_footer(const char *text);                           /* bottom line in sk.dim */
 /* scaled icon-strip frame; only with SKIN_ICON_BIG defined before including skin.c */
 uint8_t skin_icon_big(const char *name11, uint8_t frame, uint8_t x, uint8_t y, uint8_t sc);

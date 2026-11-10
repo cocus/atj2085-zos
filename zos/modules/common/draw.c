@@ -5,6 +5,7 @@
 #include "../../hal/hal.h"
 #include "../../apps/theme.h"
 #include "regs.h"
+#include "board.h"                             /* battery icon calibration */
 #include "draw.h"
 
 #ifndef DRAW_NO_ICON16
@@ -36,25 +37,28 @@ void spk_icon(uint8_t x, uint8_t y, uint8_t stereo, uint16_t fg, uint16_t bg)
     for (; n; n--, r += 4) gfx_fill(x + r[0], y + r[1], r[2], r[3], fg);
 }
 
-/* battery from the free-running battery ADC (power.md), 15x7. Fill colour by charge: red up to
- * 1/3, yellow up to 2/3, green above. USB power: a lightning bolt over it (the ADC then reads the
- * charger, so the fill shows full) */
-SFR(DRAW_BATT, P_BATT);
-SFR(DRAW_USBST, P_USB_STAT);
-#define BATT_SEGS 9
-static const uint8_t bolt_rects[] = { 7, 1, 2, 1,  6, 2, 2, 1,  4, 3, 5, 1,  5, 4, 2, 1,  4, 5, 2, 1 };
+/* battery, BATT_ICON_W x BATT_ICON_H (19x9): the state the core keeps in HAL_BATT (level + USB power,
+ * debounced, EV_BATT on a change; 0 = not sampled yet, the first half second: drawn empty). Fill
+ * (13 px) by charge on the board's scale for battery / USB power (targets/<t>/board.h): red up to
+ * 1/3, yellow up to 2/3, green above. USB power: a lightning bolt over it */
+#ifndef DRAW_NO_BATT                           /* (MP3PLAY/DECPLAY: their own, see mp3play/ui.c) */
+#define BATT_SEGS 13
+/* x, y, w, h, colour (0 fg, 1 bg, 2 charge, 3 white): outline, inside, nub, charge (w = n), then the
+ * bolt (USB power only) */
+static const uint8_t batt_rects[] = { 0, 0, 17, 9, 0,  1, 1, 15, 7, 1,  17, 2, 2, 5, 0,  2, 2, 0, 5, 2,
+    9, 1, 2, 1, 3,  8, 2, 2, 1, 3,  7, 3, 2, 1, 3,  5, 4, 7, 1, 3,  9, 5, 2, 1, 3,  8, 6, 2, 1, 3,
+    7, 7, 2, 1, 3 };
 void batt_icon(uint8_t x, uint8_t y, uint16_t fg, uint16_t bg)
 {
-    uint8_t l = DRAW_BATT & BATT_LEVEL, n, i;
-    const uint8_t *r = bolt_rects;
-    n = l < BATT_EMPTY ? 0 : l >= BATT_FULL ? BATT_SEGS :
-        (uint8_t)((l - BATT_EMPTY + 1) * BATT_SEGS / (BATT_FULL - BATT_EMPTY + 1));
-    gfx_fill(x, y, 13, 7, fg);                 /* outline */
-    gfx_fill(x + 1, y + 1, 11, 5, bg);
-    gfx_fill(x + 13, y + 2, 2, 3, fg);         /* nub */
-    gfx_fill(x + 2, y + 2, n, 3, n <= BATT_SEGS / 3 ? RGB(255, 60, 40) :
-                                 n <= BATT_SEGS * 2 / 3 ? RGB(255, 200, 40) : RGB(80, 220, 80));
-    if (DRAW_USBST & USBST_VBUS)               /* charging */
-        for (i = 0; i < sizeof bolt_rects / 4; i++, r += 4)
-            gfx_fill(x + r[0], y + r[1], r[2], r[3], RGB(255, 255, 255));
+    uint8_t s = HAL_BATT, l = s & HAL_BATT_LEVEL, e, f, n, i;
+    uint16_t c[4];
+    const uint8_t *r = batt_rects;
+    if (s & HAL_BATT_VBUS) { e = BATT_EMPTY_USB; f = BATT_FULL_USB; }
+    else { e = BATT_EMPTY_BAT; f = BATT_FULL_BAT; }
+    n = l < e ? 0 : l >= f ? BATT_SEGS : (uint8_t)((uint8_t)((l - e + 1) * BATT_SEGS) / (uint8_t)(f - e + 1));
+    c[0] = fg; c[1] = bg; c[3] = RGB(255, 255, 255);
+    c[2] = n <= BATT_SEGS / 3 ? RGB(255, 60, 40) : n <= BATT_SEGS * 2 / 3 ? RGB(255, 200, 40) : RGB(80, 220, 80);
+    for (i = s & HAL_BATT_VBUS ? sizeof batt_rects / 5 : 4; i; i--, r += 5)
+        gfx_fill(x + r[0], y + r[1], r == batt_rects + 15 ? n : r[2], r[3], c[r[4]]);
 }
+#endif
