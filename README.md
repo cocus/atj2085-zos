@@ -10,7 +10,7 @@ player's USB disk.
 <p>
 <img src="docs/images/shell_music.png" width="192" alt="Home screen carousel: MUSIC">
 <img src="docs/images/player.png" width="192" alt="MP3 player: Now playing">
-<img src="docs/images/fm.png" width="192" alt="FM radio">
+<img src="docs/images/fm_rds.png" width="192" alt="FM radio (RDA5807): RDS station name and scrolling RadioText">
 <img src="docs/images/settings.png" width="192" alt="Settings">
 </p>
 
@@ -49,32 +49,46 @@ zos, and the hardware research notes behind all of it.
 <img src="docs/images/shell_rec.png" width="160" alt="Carousel: recorder">
 <img src="docs/images/music_list.png" width="160" alt="Music browser with MP3/OGG/WAV/folder icons">
 <img src="docs/images/player_ogg.png" width="160" alt="OGG Vorbis player">
-<img src="docs/images/player_wav.png" width="160" alt="WAV player">
-<img src="docs/images/usb.png" width="160" alt="USB menu">
+<img src="docs/images/player_wav.png" width="160" alt="WAV player (16-bit PCM)">
+<img src="docs/images/fm.png" width="160" alt="FM radio (TEA5767)">
 </p>
 <p>
-<img src="docs/images/recorder.png" width="160" alt="Voice recorder: ready, with mic meter">
+<img src="docs/images/recorder.png" width="160" alt="Voice recorder: ready, with mic meter and gain steps">
 <img src="docs/images/recorder_rec.png" width="160" alt="Voice recorder: recording">
-<img src="docs/images/tools.png" width="160" alt="Tools list">
-<img src="docs/images/firmware.png" width="160" alt="Firmware backup/update">
-<img src="docs/images/sysinfo.png" width="160" alt="System info">
+<img src="docs/images/usb.png" width="160" alt="USB menu (cable in)">
+<img src="docs/images/usbdisk.png" width="160" alt="USB mass storage">
+<img src="docs/images/usbcon.png" width="160" alt="USB serial console">
 </p>
 <p>
+<img src="docs/images/usbaudio.png" width="160" alt="USB audio: source menu">
+<img src="docs/images/tools.png" width="160" alt="Tools list">
+<img src="docs/images/audiotest.png" width="160" alt="Audio test menu">
+<img src="docs/images/attone.png" width="160" alt="Audio test: tone generator">
+<img src="docs/images/atrec.png" width="160" alt="Audio test: microphone meter">
+</p>
+<p>
+<img src="docs/images/firmware.png" width="160" alt="Firmware: backup/update, BREC backup/update/restore">
+<img src="docs/images/firmware_brec.png" width="160" alt="Firmware: boot record saved to BREC.BIN">
+<img src="docs/images/sysinfo.png" width="160" alt="System info with battery level">
+<img src="docs/images/files.png" width="160" alt="File browser">
 <img src="docs/images/shell_games.png" width="160" alt="Carousel: games">
+</p>
+<p>
 <img src="docs/images/games.png" width="160" alt="Games list">
 <img src="docs/images/hopbot.png" width="160" alt="HOPBOT">
 <img src="docs/images/klondike.png" width="160" alt="Klondike">
 <img src="docs/images/spider.png" width="160" alt="Spider">
+<img src="docs/images/mines.png" width="160" alt="Mines">
 </p>
 <p>
-<img src="docs/images/mines.png" width="160" alt="Mines">
 <img src="docs/images/snake.png" width="160" alt="Snake">
-<img src="docs/images/files.png" width="160" alt="File browser">
-<img src="docs/images/audiotest.png" width="160" alt="Audio test">
+<img src="docs/images/boot_stock.png" width="160" alt="Boot screen: stock boot record (blue + hourglass)">
+<img src="docs/images/boot_brec.png" width="160" alt="Boot screen: brecpatch boot record (black + ZOS emblem)">
 </p>
 
 All screenshots come from the emulator (`zos/tools/emu_nand_zos.py`), scaled 3x. The audio
-screens use test tones and the emulator's test models of the DSP programs.
+screens use test tones and the emulator's test models of the DSP programs. The last two show
+the power-on screen drawn by the boot record: stock, and patched with `tools/brecpatch`.
 
 ## Supported hardware
 
