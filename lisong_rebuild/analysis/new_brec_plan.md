@@ -1,0 +1,123 @@
+# Boot selector / new BREC: plan (written 2026-11-10, to be picked up later)
+
+Goal (user): a boot stage that can start **zos**, a **future minimal OS** (Z80 + DAC + keys + LCD + USB,
+no MP3), the **stock firmware**, or a built-in **USB mass storage (read/write)** mode, chosen at power-on
+with the keys and the LCD, easily. Stock must stay reachable at all times. The user accepts the brick risk
+(has ROM recovery + s1clone; see memory "RISK STANCE UPDATED").
+
+## 1. What we know (facts, with sources)
+
+* **The vendor source folder** (not for publication, never commit it):
+  `s1mp3\Chinese Files\BREC_lowlevel_source\lowlevel\` (CVS 2005-10-26): `brecf641.asm` (the BREC main, 93 lines),
+  `641Read / 641SectorRead / 641WordRead / 641FTblWordRead / 641SectorProgram / 641WordProgram / 641BlockErase.asm`
+  (F641 NAND primitives), `ScanNAF.asm`, `Sdf641.asm`, `sdrw.asm`, `usbdisk51kernel.asm` (3900 lines: the stock
+  USB disk kernel), `usbsuspend.asm`. It needs `actos.inc` / `actos.h` (not present) and an IAR-style Z80
+  assembler. `sBREC_SystemTstRpr` (the firmware check/repair) and `syscfglauncher` are `extern`: **not in this folder**.
+* **`brecf641.asm` matches our BREC's entry exactly** (user's dump, md5 of BREC `9e3174977a640d24fa0f2683c3645233`):
+  header `jp 0x0200`, "BREC" "F641" "00", release 2004 + date bytes `03 15`; code at 0x0200:
+  `ld sp,0x0200 ; in a,(0xDF) ; or 1 ; out (0xDF),a ; call sBREC_SystemTstRpr (=0x1B12) ; call syscfglauncher (=0x0216) ;
+  ld sp,0x0400 ; jp 0x0600`. So the source is the same generation as ours; the diff task (section 6, task A) only has
+  to map the lowlevel files onto address ranges of the binary and list real differences.
+* **Boot chain**: BROM (mask ROM) loads 16 KB BREC from NAND blocks 0..3 (first one with `0x55AA` at 0x3FFC and the
+  16-bit word sum at 0x3FFE; it reads no spare/ECC), runs it at 0x0000. BREC (our dump, boot.md 1.1): LCD init +
+  hourglass (0x3000), flash detect (0x150D), FTL mount (0x0A36, rewrites the tables every boot), firmware check
+  (0x0600) incl. A/B copy logic, `SYSCFG.SYS` lookup/load (0x0216), `sp=0x400`, `jp 0x0600`. BROM recovery ADFU only
+  if no BREC block loads.
+* **Contract BREC -> kernel**: kernel image at RAM 0x0600.., vector page at 0x0000, SP 0x0400, interrupts off, FTL
+  state in RAM left by BREC's mount (the stock kernel and drivers rely on it; boot.md 7.3), screen initialised with
+  the backlight on. zos core takes over everything else (zos_native_boot.md).
+* **Free space in the 16 KB BREC**: only ~637 bytes of zeros (0x0080-0x01FF = 384 B, 0x3701-0x37FF = 253 B), plus the
+  1440-byte hourglass bitmap (0x3161-0x3700) that brecpatch already replaces. ~2 KB in total: too small for a
+  menu + font + FAT + USB inside the existing image by patching alone.
+* **Stage 0 already exists** and has the space: `tools/fwpatch/stub/zosboot.s` is our selector that lives in
+  `SYSCFG.SYS` (BREC loads up to 0x3800 bytes of it to RAM 0x0600.., the kernel image is kept as `SYSCFG.STK`). It
+  already reads the user disk's FAT16 root through BREC's own flash reader, loads `ZOS.AP` to 0x0800, and re-enters
+  BREC's loader with the name patched to `SYSCFG  STK` to start stock. Its own code area is 0x2C00-0x30FF
+  (7 bytes free in the current build, but the zos core region 0x0800-0x2BFF is free while it decides).
+* **Key/LCD facts** (device-verified): key GPIOs must be set up first (`P_GPB_CFG` / `P_KEYSCAN` = 0; the first native
+  boot was bricked by reading MENU before that); keys MENU, VOL, `<<`, `>>`, PLAY (PLAY is on a different scan phase;
+  see zos/targets/atj2085/platform.c). LCD init table + RAM-write sequence: boot.md 2.1 (CE3 via port 02 = 0x18, A0 on
+  GPIO_C2). zos has a tiny 5x7 font and the LCD routines already.
+
+## 2. Two layers (recommendation: do layer 1 first, layer 2 only where it buys something)
+
+**Layer 1: boot menu as stage 0 in SYSCFG.SYS** (extends zosboot; no BREC write needed, flashable with s1res):
+* power-on: no key held -> default entry, immediately (no delay; boot speed matters to the user);
+  hold a key (suggest MENU) -> the menu; hold VOL -> stock directly (as today).
+* menu on the LCD: title, 4-6 entries, highlight with `<<` `>>`, PLAY starts, MENU = default; entries from
+  built-ins (STOCK, USB DISK) plus the entries listed in a text file on the user disk (`BOOT.CFG` in the root:
+  `label=FILE.AP` per line, file loaded to 0x0800 like `ZOS.AP`; editable from a PC through the stock USB disk, no
+  tool needed) and the choice of default (`DEFAULT=n`).
+* payload types: **stock** (re-enter BREC's loader with the `SYSCFG  STK` name, exists), **disk AP** (zos, the future
+  minimal OS, anything built like `ZOS.AP`; exists), **USB MSC RW**: a standalone payload `USBMSC.AP` on the disk
+  (zos's USB mass storage code on a minimal HAL: LCD status line, MENU = leave/reset). It is also the first brick of
+  the future minimal OS, so build it as the first "mini-OS" target (see section 5).
+* room: SYSCFG.SYS may be 0x3800 bytes; the selector gets 0x2C00-0x30FF now, and we can move the sector buffer /
+  loaded payload area to give it 3-4 KB (menu + font + BOOT.CFG parser). Budget to verify.
+
+**Layer 2: our own BREC** (later; only if layer 1 is not enough). Reasons it could be worth it:
+* boot time: no hourglass/blue init waits, no per-file sums (brecpatch --fast already gets SYSCFG start at 1.84 s,
+  a from-scratch BREC could skip the FTL mount rewrite too, but then must provide the FTL RAM state itself);
+* a boot screen/menu that appears at ~0.3 s instead of after the mount;
+* no dependency on the stock kernel at all (needed only if the stock fallback is ever dropped).
+Costs/risks: stock kernel and drivers expect BREC's RAM state (FTL descriptors at 0x3C80 etc., clock/watchdog
+setup), the A/B firmware copy and repair logic must be kept for s1res, and a bad BREC needs ROM recovery. The vendor
+`lowlevel` NAND sources give the confirmed F641 read/program/erase protocol to write our own (our code, not copies).
+If we do it: keep stock's BREC code as the starting point by *hooking* (brecpatch) before writing from scratch.
+
+## 3. Boot policy (proposal, to confirm with the user)
+
+| situation at power-on | action |
+|---|---|
+| nothing held | default entry from `BOOT.CFG` (factory default: ZOS if present and valid, else stock) |
+| MENU held | boot menu |
+| VOL held | stock (escape, as today) |
+| USB cable present | default entry (option: USB DISK straight away; the old VBUS->stock escape is optional) |
+| payload missing/corrupt | stock, never a hang (zosboot already does this) |
+
+## 4. Work breakdown (each step independently testable in the emulator; nothing flashed by agents)
+
+1. **zosboot menu**: add LCD text (init is already done by BREC: only fill/text), keys (after GPIO init), menu loop,
+   BOOT.CFG reader (FAT file read exists), entries; keep the "any failure -> stock" invariant; emulator test matrix
+   extended (`tools/fwpatch/test/emu_matrix.py`): key presses at power-on (the emulator's key model + early boot),
+   each entry, missing file, garbage file, bad BOOT.CFG.
+2. **USBMSC.AP**: standalone MSC RW payload from zos's `common/usb` code (MSC only) on a minimal startup (no zos
+   core): clocks (48 MHz), NAND/FTL read + write (`nand.s`, `ftlw.inc`), FAT not needed (raw LBA to the host), LCD
+   status line, unplug/eject handling; tested with the emulator's USB host model (`zos/tools/emu_usb_test.py`).
+3. **mini-OS skeleton** (the future OS for Z80 + DAC + keys + LCD + USB): HAL subset of zos (hal.h targets),
+   build target with its own core, "hello" + USB + DAC beep; loaded as an AP from BOOT.CFG. Decide here how much of
+   zos's core is reused (git subtree / shared `common`), since the user says "no mp3".
+4. **zospatch v2**: patcher support for the new stage 0 (selector size, BOOT.CFG default file creation), docs.
+5. **(optional) BREC layer 2**: hook-based first (brecpatch `--menu`: use the freed ~2 KB for an early key check that
+   skips straight into a chosen payload before the mount), then evaluate a from-scratch BREC.
+
+## 5. Open questions for the user
+
+* Which key opens the menu (MENU?) and should the menu also be reachable by holding PLAY-length etc.?
+* Default when nothing is held: ZOS, or stock? Should USB cable at power-on go straight to MSC?
+* Where should payloads live: user disk root (easy, no reflash, recommended) or inside FWIMAGE (survives disk
+  formatting)? The disk is the plan.
+* Name/label set for the menu (EN/ES?).
+* Is layer 2 (own BREC) wanted now, or after the menu exists?
+
+## 6. Tasks to hand to agents when work resumes
+
+* **Task A: vendor source vs our BREC (diff).** Map each `lowlevel\*.asm` function to address ranges in our 16 KB BREC
+  (user's dump: `readback-my-ximpro.s1clone`, BREC extracted by `tools/brecpatch/brecpatch.py` `load()`), by
+  disassembling the binary (`lisong_rebuild/tools/z80dis.py`) and matching instruction sequences by hand/script
+  (the source needs `actos.inc`: symbols can be reconstructed from the binary). Output: a table (source routine ->
+  binary address, identical / different / absent), the real differences (constants, extra code such as the hourglass
+  and LCD, the F641-specific paths), and what the source adds to our knowledge (names, comments, NAND timing,
+  `ScanNAF` bad-block logic, `sdrw` for SD, `usbdisk51kernel` = stock USB disk). Write findings into
+  `lisong_rebuild/analysis/brec_source_vs_binary.md` **in our own words, no verbatim vendor code**; raw diffs stay in the
+  scratchpad. The vendor folder is never copied into the repo.
+* **Task B: steps 1-4 above** (one agent per step, in separate git worktrees, merged by the coordinator).
+
+## 7. How to resume
+
+* Repo: `C:\Users\cocus\Downloads\s1mp3` (git; last commits: README screenshots, brecpatch fast boot default).
+* Tools that exist: `tools/fwpatch/zospatch.py` (+ `stub/zosboot.s`, `build_stub.py`, `test/emu_matrix.py`),
+  `tools/brecpatch/brecpatch.py`, `zos/modules/firmware` (BREC BACKUP/UPDATE/RESTORE), `atj2085emu` (real BROM + BREC
+  model in `emu/soc.py brom_load_brec`), `zos/tools/emu_usb_test.py`.
+* Read first: this file, `boot.md`, `zos_native_boot.md`, `tools/fwpatch/README.md`, `zos/NAND_AND_BOOT.md`
+  (sections 4-5), memory notes (zos-project, atj2085-device-facts, zos-build-deploy, emulator-usage).
