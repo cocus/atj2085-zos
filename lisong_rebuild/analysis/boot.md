@@ -32,7 +32,8 @@ BROM: load/check BREC into RAM 0000-3FFF
   -> BREC 0200: set initial stack, call 1B12
        -> 3000: select LCD and initialise/paint hourglass
        -> 150D: detect flash devices
-       -> 0A36: mount the FTL (scan and rewrite its tables)
+       -> 0A36: boot-record self check/repair (verify BREC copies in blocks 0..3, rewrite a damaged one; NOT the mount)
+       -> 2075: mount the FTL (scan and rewrite its tables)
        -> 2075, then 0600: check the firmware image; any failed check takes the 2063 error path
   -> BREC 0216: find and load SYSCFG.SYS and its vector page
   -> return to 0200: set SP=0400 and jump to 0600
@@ -126,7 +127,7 @@ NAND busy/ready time is NOT modelled in the emulator (reads are instantaneous), 
 | 22.5 - 23.6 M | 0.95 | 1.96 | blue fill, then hourglass bitmap written to LCD RAM (not yet visible: backlight off) | 0x3068, 0x30A4 |
 | 23.6 - 30.94 M | 1.26 | 2.58 | final 200 + 100 unit waits | 0x30AF |
 | **30.94 M** | **1.26** | **2.58** | **backlight ON: hourglass visible** (EE bit1, pc 0x30BF) | |
-| 30.96 - 32.2 M | 1.31 | 2.68 | flash detect (CE1 ID, family 1, geometry), `0x150D` | 0x150D, 0x0A36 |
+| 30.96 - 32.2 M | 1.31 | 2.68 | flash detect (CE1 ID, family 1, geometry), `0x150D` | 0x150D, 0x0A36 (BREC self check) |
 | 32.2 - 51.84 M | 2.11 | 4.32 | **FTL mount**: 4093 loop iterations at 0x22F3 (units 2..0xFFF), 2 spare reads each = 8187 reads, then table rewrite: 16 page programs + 4 erases (temp units + table block, both zones) | 0x2075, 0x22F3-0x2406 |
 | 51.84 - 105.49 M | 4.29 | 8.79 | **firmware image verification**: header `55 AA F0 0F` + checksum, directory (32-byte entries), then per file `0x0875` = 32-bit sum over the file's sectors; 72 files, 3190 sector reads (reads 8256 -> 11446), ~16.8 k T per sector. Skips `.$$$` and `.RES` entries (fonts/tables/pictures) | BREC 0x0600, 0x06DB, 0x0875, 0x091F |
 | 105.50 - 105.61 M | 4.30 | 8.80 | load SYSCFG.SYS (dir lookup of "SYSCFG  SYS", 0x0216/0x023A, ~30 sectors) to 0x0600 | 0x0216, 0x3FDB |

@@ -20,7 +20,8 @@ with the keys and the LCD, easily. Stock must stay reachable at all times. The u
   to map the lowlevel files onto address ranges of the binary and list real differences.
 * **Boot chain**: BROM (mask ROM) loads 16 KB BREC from NAND blocks 0..3 (first one with `0x55AA` at 0x3FFC and the
   16-bit word sum at 0x3FFE; it reads no spare/ECC), runs it at 0x0000. BREC (our dump, boot.md 1.1): LCD init +
-  hourglass (0x3000), flash detect (0x150D), FTL mount (0x0A36, rewrites the tables every boot), firmware check
+  hourglass (0x3000), flash detect (0x150D), FTL mount (0x2075, rewrites the tables every boot; 0x0A36 is the boot-record self check/repair, see
+  brec_source_vs_binary.md), firmware check
   (0x0600) incl. A/B copy logic, `SYSCFG.SYS` lookup/load (0x0216), `sp=0x400`, `jp 0x0600`. BROM recovery ADFU only
   if no BREC block loads.
 * **Contract BREC -> kernel**: kernel image at RAM 0x0600.., vector page at 0x0000, SP 0x0400, interrupts off, FTL

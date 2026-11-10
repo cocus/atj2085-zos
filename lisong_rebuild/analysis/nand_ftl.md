@@ -141,7 +141,8 @@ Program side: the controller computes it while DMA writes the 512 bytes (UD 0x37
    Results ("StorageInfor", RAM 0x0080, 24 bytes) read by the kernel/drivers:
    `0x0080` = bitmask of CEs with NAND (0x02), `0x0081` = family (1), `0x0088+2*CE` = capacity
    (`0x008A = 0x1EC0`), `0x0082/0x0083/0x0090` = SMC card on CE4 [emu: `02 01 00.. c0 1e`].
-3. `0x0A36` FTL mount (zone scan, table load/save, see 2.4) ; `0x2075(DE=0)` ; `0x0600` (BREC code).
+3. `0x0A36` boot-record self check/repair (see brec_source_vs_binary.md) ; `0x2075(DE=0)` FTL mount (zone scan,
+   table load/save, see 2.4) ; `0x0600` (BREC code).
    Any failure -> 0x2063 (error path; not followed).
 4. Then BREC reads SYSCFG.SYS through its FW reader (0x3FDB -> 0x3CAF) and jumps to 0x0600.
 Note: RAM 0x0037 is 0x76 (BREC filler) during BREC; SYSCFG's vector page later sets it to 1, so the
@@ -202,7 +203,7 @@ BREC's scan reads bytes 0-7 of page 0 of both planes of every unit (0x2304-0x233
   **`0x3C80 + 2*zone` = (k << 12) | table_unit** [emu: after init `0x3C80 = 50 10 49 10` = copy 1 of units
   0x050 / 0x049]; readers (BREC 0x3CF9, UD 0x372F) address entry L at column `2L & 0x7FF` of page
   `2k + (2L >> 11)` of the table block, via the cached word reader BREC 0x3F69 (32-byte chunks at 0x3F48).
-* **Mount (BREC 0x0A36, every boot)**: scans the spare of all units of all zones (~8200 spare reads
+* **Mount (BREC 0x2075 -> 0x20B8 -> 0x2146 -> scan 0x22E1, every boot)**: scans the spare of all units of all zones (~8200 spare reads
   [emu]) - code 0x22F3-0x2406: byte0 != FF -> bad; byte1 = 0xBB -> table unit (a second 0xBB unit is
   erased and freed); other non-FF markers -> erase + free; FF -> data unit with logical number in
   bytes 2-3. It then erases the temp unit of each zone and writes the table as a new copy (k+1) into
