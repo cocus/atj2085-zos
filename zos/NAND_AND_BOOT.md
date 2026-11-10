@@ -190,3 +190,26 @@ the NAND chip model incl. overlays, `0x55AA` + sum, first valid block; none -> s
 * `NEWBREC.BIN` with one flipped bit ("55AA / SUM WRONG") and a random file with a valid sum ("NOT THIS
   BOOT RECORD"): refused, no erase or program in blocks 0-3.
 * ROM model: block 0 erased + block 1 valid -> boots from block 1; both erased -> ROM recovery.
+
+### 5.4 Faster boot (brecpatch `--fast-boot` / `--fast-lcd`, opt-in, emulator-verified only)
+`--fast-boot` replaces three calls in BREC's firmware check (BREC 0x0606-0x069C, section 4) with calls
+to a 39-byte stub placed in free bytes after the picture (0x3720, untouched by BREC at run time). A
+flag byte in the stub (1 in the image, so set at every power-on) makes the per-file sum call
+(0x0860 -> 0x0875) return "ok" without reading the files. The flag is cleared, giving stock full
+checks, on the "A bad" path (0x0672: B is fully verified before B -> A) and on the "A != B" path
+(0x068B). On that path the stub first re-verifies A **fully**: if A is fine it continues with the
+stock erase-VM + copy A -> B; if not, it goes to the A-bad path. Header/directory sums, the A/B
+header compare and both copy directions are unchanged. `--fast-lcd` sets the two pre-backlight
+waits (0x30AF/0x30B4: 200 + 100) to 1 + 1.
+
+Emulator, real dump and the ROM-loader model. T-states to the SYSCFG jump (seconds at 24.576 MHz):
+| case | stock BREC | `--fast` BREC | result (both) |
+|---|---|---|---|
+| normal boot (A = B = stock) | 105.61 M (4.30 s) | 45.33 M (1.84 s) | stock menu; zos-native shell on screen before 60 M; zospatch fw OK |
+| `--fast-boot` only | | 52.62 M (2.14 s) | |
+| s1res-style flash (new image in A only) | 299.33 M | 292.66 M | A verified fully, copied to B, A = B = new image |
+| A header sum broken | 298.36 M | 291.07 M | B verified fully, copied to A, A = B = stock |
+| interrupted update (new header, first 3000 sectors new) | 335.27 M | 328.61 M | detected by the full A check, B -> A, A = B = stock |
+| one bit flipped in MAIN.AP in A, header = B | 335.27 M (healed) | **45.33 M, not healed** | the protection that is lost |
+The FIRMWARE module installs a `--fast` boot record (summary "CODE DIFFERS!", the family bytes match)
+and the next cold boot reaches SYSCFG at 45.33 M.

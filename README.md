@@ -42,7 +42,7 @@ zos, and the hardware research notes behind all of it.
 | Power | standby like stock (long PLAY), wake by PLAY or USB | device + emulator |
 | Games | HOPBOT (an original endless runner), Klondike (draw 1/3), Spider (1/2/4 suits), Mines (3 board sizes), Snake | emulator + device |
 | Tools | system info, file browser, LCD speed/DMA tests, audio test, I2C scan, FTL test | device |
-| Boot screen | [`tools/brecpatch`](tools/brecpatch/README.md): black background + own 20x36 picture in the boot record; FIRMWARE `BREC BACKUP` / `BREC UPDATE` / `BREC RESTORE` write it (block 1, verify, then block 0) | **emulator only** |
+| Boot screen | [`tools/brecpatch`](tools/brecpatch/README.md): black background + own 20x36 picture in the boot record, optional faster boot (`--fast`: OS start 4.3 s -> 1.8 s by skipping the per-file firmware sums on normal boots); FIRMWARE `BREC BACKUP` / `BREC UPDATE` / `BREC RESTORE` write it (block 1, verify, then block 0) | **emulator only** |
 | Boot | [`tools/fwpatch/zospatch.py`](tools/fwpatch/README.md): patches a stock `.fw` so it boots stock unless `ZOS.AP` is on the disk (see [Install](#install-on-a-device)) | emulator; device-untested |
 
 <p>

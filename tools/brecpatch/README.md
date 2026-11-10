@@ -33,6 +33,42 @@ part) or an s1clone NAND dump (block 0; block 1 is compared). Pictures of anothe
 fitted into 20 x 36 on the fill colour. The picture is stored rotated by 180 degrees, as the
 stock one is (the glass is mounted upside down relative to the GRAM scan BREC sets up).
 
+## Faster boot (opt-in: `--fast-boot`, `--fast-lcd`, `--fast` = both)
+
+Times from power-on code start (BREC entry) to the OS (`SYSCFG.SYS`) start, emulator T-states,
+seconds at 24.576 MHz (the boot clock; the emulator does not model NAND busy time):
+
+| boot record | picture visible (backlight on) | OS starts | zos-native shell on screen |
+|---|---|---|---|
+| stock | 30.9 M = 1.26 s | 105.6 M = 4.30 s | ~106 M + zos init |
+| `--fast-boot` | 30.9 M = 1.26 s | 52.6 M = 2.14 s | |
+| `--fast` | 23.7 M = 0.96 s | 45.3 M = 1.84 s | before 60 M = 2.4 s |
+
+**`--fast-boot`.** At every power-on BREC checks FWIMAGE copy A (the firmware): magic, header
+16-bit sum, directory 32-bit sum, then the 32-bit sum of every file except fonts/pictures (1.6 MB,
+about half of the boot time). Then it compares A's header with copy B's and copies A to B after a
+flash, or B to A if A is bad. `--fast-boot` keeps all of that except the per-file sums, and skips
+those **only on a normal boot**. A run-time flag (in a few free bytes after the picture) switches
+back to the stock full checks whenever something is off:
+* A and B differ (first boot after s1res or a zos FIRMWARE update, or an interrupted update): A is
+  verified **fully** before the stock "erase settings + copy A to B". If A's files are bad, the
+  stock "verify B fully + copy B to A" runs instead. A half-written update is therefore still
+  undone, as with the stock boot record.
+* A's header or directory is bad: B is verified fully before it is copied over A (stock).
+
+**What you lose:** if a file inside copy A gets corrupted while A's header and directory stay
+intact and equal to B's (e.g. a NAND bit error the ECC cannot fix), the stock boot record notices
+and heals A from B. The patched one boots the damaged file, which can crash or hang. Reflashing
+with s1res fixes it if the stock OS still gets to its USB mode, otherwise ROM recovery.
+
+**`--fast-lcd`** sets the two waits after the picture is drawn and before the backlight goes on
+(200 + 100 units of about 1 ms) to 1 + 1. They only delay the backlight; the LCD reset waits
+(10, 10, 100) and the four 200-unit waits inside the controller init table (power-up steps) are
+kept, because there is no evidence they can be shortened safely. This saves 7.3 M T = 0.30 s.
+
+The zos FIRMWARE module accepts these boot records: the header and entry code it compares are
+untouched. Its summary says "CODE DIFFERS!" because the firmware-check calls change.
+
 ## Installing it
 
 **s1res / the normal firmware update does NOT write the boot record** (it only writes FWIMAGE

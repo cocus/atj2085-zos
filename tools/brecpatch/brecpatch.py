@@ -12,8 +12,13 @@ picture (stock: an hourglass) before it mounts the NAND and loads the OS. This t
   * writes a preview PNG of the boot screen as the user sees it (128 x 128 visible part of the\r
     132 x 132 GRAM, glass mounted rotated 180 degrees; the picture is stored rotated accordingly).
 
+Optional, opt-in (README "Faster boot"): --fast-boot skips the per-file firmware sums on normal
+boots (full checks stay whenever copy A and B differ or A's header/directory is bad), --fast-lcd
+shortens the two waits before backlight-on, --fast = both, --keep-screen leaves the picture alone.
+
 usage:
-  brecpatch.py IN [-o OUT.BIN] [--fill RRGGBB] [--image FILE] [--preview P.png] [--fw-out OUT.fw]
+  brecpatch.py IN [-o OUT.BIN] [--fill RRGGBB] [--image FILE] [--keep-screen] [--fast-boot]
+               [--fast-lcd] [--fast] [--preview P.png] [--fw-out OUT.fw]
   brecpatch.py IN --check                     report what is found (nothing written)
   brecpatch.py IN --restore-check ORIG        compare IN with ORIG: only fill/bitmap/sum may differ
 IN / ORIG: a raw 16384-byte BREC, an AFI .fw (its BREC*.BIN part) or an s1clone NAND dump
@@ -298,6 +303,130 @@ def preview(b, info, path, scale=3):
     png(path, rows)
 
 
+# ------------------------------------------------------------------------------------- fast boot
+# BREC's firmware check (BREC 0x0606 in BRECF641) verifies FWIMAGE copy A fully (magic, header u16
+# sum, directory u32 sum, then the u32 sum of every non-.$$$/.RES file = ~half of the boot time),
+# then copy B "light" (magic only) and compares A's and B's header ids. --fast-boot keeps all of that
+# except the per-file sums on the NORMAL path: they are skipped only while a run-time flag is set,
+# and the flag is cleared (= stock full checks) as soon as anything is off:
+#   * A and B headers differ (first boot after a flash, interrupted update): A is re-verified FULLY
+#     before the stock "erase settings + copy A -> B"; if A's files are bad, the stock "verify B
+#     fully + copy B -> A" path runs instead (this extra check is not in the stock BREC: there A
+#     was already fully verified at that point);
+#   * A fails its header/directory check: B is verified fully (stock) before B -> A.
+# Lost: a corrupted file BODY in copy A while A's header/dir are intact and equal to B's is no
+# longer detected (stock: B is verified fully and copied over A); the player then runs the
+# damaged file. The 0x55AA/sum of BREC itself and everything in the ROM are unchanged.
+#
+# verify entry:  xor a ; ld (LIGHT),a ; ld de,0 ; call VERIFY ; and a ; jr nz,A_BAD ; inc a ; ld (LIGHT),a
+FB_MAIN = [0xAF, 0x32, None, None, 0x11, 0x00, 0x00, 0xCD, None, None, 0xA7, 0x20, None, 0x3C, 0x32, None, None]
+# A bad:   ld de,0x4000 ; call VERIFY ; and a ; jp nz,DONE ; ld hl,0x4000 ; ld de,0 ; ld bc,0x4000 ;
+#          call COPY ; jp MAIN
+FB_ABAD = [0x11, 0x00, 0x40, 0xCD, None, None, 0xA7, 0xC2, None, None, 0x21, 0x00, 0x40, 0x11, 0x00, 0x00,
+           0x01, 0x00, 0x40, 0xCD, None, None, 0xC3, None, None]
+# A != B:  call ERASEVM ; ld hl,0 ; ld de,0x4000 ; ld bc,0x4000 ; call COPY ; jp MAIN
+FB_DIFF = [0xCD, None, None, 0x21, 0x00, 0x00, 0x11, 0x00, 0x40, 0x01, 0x00, 0x40, 0xCD, None, None, 0xC3, None, None]
+# per directory entry: pop hl ; call FILESUM ; and a ; jr nz,+6 ; pop bc ; djnz loop
+FB_FILE = [0xE1, 0xCD, None, None, 0xA7, 0x20, 0x06, 0xC1, 0x10]
+FILESUM_PROLOGUE = bytes([0xC5, 0xD5, 0xE5, 0xDD, 0xE5])          # push bc/de/hl/ix
+STUB_LEN = 0x30
+# LCD (paint routine end): ld c,200 ; call DELAY ; ld c,100 ; call DELAY ; in a,(EE) ; set 1,a ; out (EE),a
+LCD_TAIL = [0x0E, None, 0xCD, None, None, 0x0E, None, 0xCD, None, None, 0xDB, 0xEE, 0xCB, 0xCF, 0xD3, 0xEE]
+
+
+def w16(v):
+    return [v & 0xFF, v >> 8]
+
+
+def fast_stub(base, light, verify, filesum, erasevm, abad):
+    flag = base
+    s1, s3, s2 = base + 1, base + 10, base + 18
+    code = [1]                                                     # flag (1 = skip file sums)
+    code += [0x3A] + w16(flag) + [0xB7, 0xCA] + w16(filesum) + [0xAF, 0xC9]   # s1: per-file sum
+    code += [0xAF, 0x32] + w16(flag) + [0x11, 0x00, 0x40, 0xC9]               # s3: A bad -> full
+    code += [0xAF, 0x32] + w16(flag) + [0x32] + w16(light) + [0x11, 0x00, 0x00, 0xCD] + w16(verify) \
+        + [0xA7, 0xCA] + w16(erasevm) + [0xE1, 0xC3] + w16(abad)              # s2: A != B
+    assert len(code) <= STUB_LEN and s1 == base + 1 and len(code) > 18
+    return bytes(code), s1, s2, s3
+
+
+def find_fastboot(b, info):
+    """-> dict with the patch sites and state 'stock' / 'patched'; BrecError if not recognised."""
+    m, f, d = find(b, FB_MAIN), find(b, FB_FILE), find(b, FB_DIFF)
+    if len(m) != 1 or len(f) != 1:
+        raise BrecError('firmware-check entry / per-file sum call not found exactly once (%d, %d)' % (len(m), len(f)))
+    x = m[0]
+    light, verify = struct.unpack_from('<H', b, x + 2)[0], struct.unpack_from('<H', b, x + 8)[0]
+    if struct.unpack_from('<H', b, x + 15)[0] != light:
+        raise BrecError('firmware-check flag mismatch')
+    abad = x + 13 + struct.unpack_from('b', b, x + 12)[0]
+    callf = f[0] + 1
+    target = struct.unpack_from('<H', b, callf + 1)[0]
+    base = info['bitmap'] + BMP_LEN + 0x1F                         # free bytes after the bitmap
+    diffs = [p for p in d if struct.unpack_from('<H', b, p + 16)[0] == x]
+    if len(diffs) != 1:
+        raise BrecError('A != B copy path not found exactly once')
+    diff = diffs[0]
+    st = dict(main=x, light=light, verify=verify, abad=abad, callf=callf, diff=diff, base=base)
+    if target == base + 1:                                         # already patched by us
+        filesum = struct.unpack_from('<H', b, base + 6)[0]
+        erasevm = struct.unpack_from('<H', b, base + 18 + 15)[0]
+        code = fast_stub(base, light, verify, filesum, erasevm, abad)[0]
+        if b[base:base + len(code)] != code or b[abad] != 0xCD:
+            raise BrecError('fast-boot patch present but damaged')
+        st.update(state='patched', filesum=filesum, erasevm=erasevm)
+        return st
+    ab = b[abad:abad + len(FB_ABAD)]
+    if not all(p is None or ab[k] == p for k, p in enumerate(FB_ABAD)) or \
+            struct.unpack_from('<H', ab, 4)[0] != verify or struct.unpack_from('<H', ab, 23)[0] != x:
+        raise BrecError('A-bad path at 0x%04X not recognised' % abad)
+    if b[target:target + 5] != FILESUM_PROLOGUE:
+        raise BrecError('per-file sum routine 0x%04X not recognised' % target)
+    if not (base + STUB_LEN <= 0x3800 and b[base - 0x1F:base + STUB_LEN] == bytes(STUB_LEN + 0x1F)):
+        raise BrecError('no free (zero) bytes after the bitmap for the fast-boot stub')
+    st.update(state='stock', filesum=target, erasevm=struct.unpack_from('<H', b, diff + 1)[0])
+    return st
+
+
+def patch_fastboot(nb, st):
+    if st['state'] == 'patched':
+        return 0
+    code, s1, s2, s3 = fast_stub(st['base'], st['light'], st['verify'], st['filesum'], st['erasevm'], st['abad'])
+    nb[st['base']:st['base'] + len(code)] = code
+    nb[st['callf']:st['callf'] + 3] = bytes([0xCD] + w16(s1))      # per-file sum -> s1
+    nb[st['diff']:st['diff'] + 3] = bytes([0xCD] + w16(s2))        # A != B -> s2 (full A check first)
+    nb[st['abad']:st['abad'] + 3] = bytes([0xCD] + w16(s3))        # A bad -> s3 (full B check)
+    return 1
+
+
+def find_fastlcd(b, info):
+    hits = [p for p in find(b, LCD_TAIL) if info['code'] < p < info['code'] + 0x80]
+    if len(hits) != 1:
+        raise BrecError('backlight-on delay pair not found exactly once')
+    p = hits[0]
+    if struct.unpack_from('<H', b, p + 3) != struct.unpack_from('<H', b, p + 8):
+        raise BrecError('backlight-on delays call different routines')
+    return dict(at=p, waits=(b[p + 1], b[p + 6]))
+
+
+def fastboot_sites(b, info):
+    """bytes a --fast-boot / --fast-lcd patch may change (for --restore-check)"""
+    s = set()
+    try:
+        st = find_fastboot(b, info)
+        s |= set(range(st['base'], st['base'] + STUB_LEN))
+        for k in ('callf', 'diff', 'abad'):
+            s |= set(range(st[k], st[k] + 3))
+    except BrecError:
+        pass
+    try:
+        p = find_fastlcd(b, info)['at']
+        s |= {p + 1, p + 6}
+    except BrecError:
+        pass
+    return s
+
+
 # ------------------------------------------------------------------------------------- main
 def report(b, src, name):
     info = analyse(b)
@@ -308,6 +437,18 @@ def report(b, src, name):
         info['code'], info['colour'], info['fill_at'], ' (stock blue)' if info['colour'] == 0x001F else ''))
     print('  picture: %dx%d at LCD cols 0x%02X-0x%02X rows 0x%02X-0x%02X, bitmap at 0x%04X-0x%04X' % (
         W, H, x0, x1, y0, y1, info['bitmap'], info['bitmap'] + BMP_LEN - 1))
+    try:
+        st = find_fastboot(b, info)
+        print('  firmware check at 0x%04X: per-file sums %s' % (
+            st['main'], 'SKIPPED on the normal path (fast boot)' if st['state'] == 'patched' else 'stock (every boot)'))
+    except BrecError as e:
+        print('  firmware check: not recognised (%s): --fast-boot unavailable' % e)
+    try:
+        fl = find_fastlcd(b, info)
+        print('  backlight-on waits at 0x%04X: %d + %d units%s' % (fl['at'], fl['waits'][0], fl['waits'][1],
+              ' (stock)' if fl['waits'] == (200, 100) else ''))
+    except BrecError as e:
+        print('  backlight-on waits: not recognised (%s)' % e)
     return info
 
 
@@ -319,6 +460,12 @@ def main(argv=None):
     ap.add_argument('--image', help='20x36 picture (PNG/BMP; other sizes are fitted)')
     ap.add_argument('--preview', help='write a preview PNG of the boot screen as seen on the 128x128 glass (x3)')
     ap.add_argument('--fw-out', help='also write a copy of the input .fw with the patched BREC part')
+    ap.add_argument('--keep-screen', action='store_true', help='do not change fill colour / picture')
+    ap.add_argument('--fast-boot', action='store_true',
+                    help='skip the per-file firmware sums on normal boots (see README: what is lost)')
+    ap.add_argument('--fast-lcd', action='store_true',
+                    help='shorten the two waits before backlight-on (200+100 -> 1+1 units)')
+    ap.add_argument('--fast', action='store_true', help='= --fast-boot --fast-lcd')
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--restore-check', metavar='ORIG')
     a = ap.parse_args(argv)
@@ -337,26 +484,44 @@ def main(argv=None):
                 print('IDENTICAL to the original')
                 return 0
             allowed = set(range(info['fill_at'], info['fill_at'] + 2)) | set(range(info['bitmap'], info['bitmap'] + BMP_LEN)) \
-                | {SUM_OFF, SUM_OFF + 1}
+                | {SUM_OFF, SUM_OFF + 1} | fastboot_sites(o, oi)
             diff = [i for i in range(BREC_LEN) if b[i] != o[i]]
             bad = [i for i in diff if i not in allowed]
             if oi['bitmap'] != info['bitmap'] or oi['fill_at'] != info['fill_at'] or bad:
-                print('DIFFERS outside fill/bitmap/sum: %d bytes, first at 0x%04X' % (len(bad), bad[0] if bad else 0))
+                print('DIFFERS outside fill/bitmap/fast-boot sites/sum: %d bytes, first at 0x%04X' % (len(bad), bad[0] if bad else 0))
                 return 1
-            print('differs only in fill colour / picture / sum (%d bytes): a patched copy of the original' % len(diff))
+            print('differs only in fill colour / picture / fast-boot sites / sum (%d bytes): a patched copy of the original' % len(diff))
             return 0
-        bg = parse_colour(a.fill)
-        px = load_image(a.image, bg) if a.image else emblem(bg)
         nb = bytearray(b)
-        struct.pack_into('<H', nb, info['fill_at'], rgb565(*bg))   # ld de,nn: LE immediate
-        nb[info['bitmap']:info['bitmap'] + BMP_LEN] = encode(px)
+        what = []
+        if a.fast:
+            a.fast_boot = a.fast_lcd = True
+        if a.fast_boot:                                    # before the picture: checks the free bytes
+            if patch_fastboot(nb, find_fastboot(b, info)):
+                what.append('fast boot')
+        if not a.keep_screen:
+            bg = parse_colour(a.fill)
+            px = load_image(a.image, bg) if a.image else emblem(bg)
+            struct.pack_into('<H', nb, info['fill_at'], rgb565(*bg))   # ld de,nn: LE immediate
+            nb[info['bitmap']:info['bitmap'] + BMP_LEN] = encode(px)
+            what.append('fill 0x%04X + picture %s' % (rgb565(*bg), a.image or 'built-in ZOS emblem'))
+        if a.fast_lcd:
+            fl = find_fastlcd(b, info)
+            nb[fl['at'] + 1] = 1
+            nb[fl['at'] + 6] = 1
+            what.append('backlight-on waits %d+%d -> 1+1' % fl['waits'])
         fix_sum(nb)
         nb = bytes(nb)
         ni = analyse(nb)                                   # re-verify the result
         assert ni['bitmap'] == info['bitmap'] and ni['fill_at'] == info['fill_at']
+        if a.fast_boot:
+            assert find_fastboot(nb, ni)['state'] == 'patched'
+        if a.fast_lcd:
+            assert find_fastlcd(nb, ni)['waits'] == (1, 1)
+        assert nb[:8] == b[:8] and nb[0x200:0x215] == b[0x200:0x215]   # what zos FIRMWARE compares
         diff = [i for i in range(BREC_LEN) if nb[i] != b[i]]
-        print('patched: fill 0x%04X, picture %s, %d bytes changed, new sum %04X: verified' % (
-            ni['colour'], a.image or 'built-in ZOS emblem', len(diff), brec_sum(nb)))
+        print('patched: %s; %d bytes changed, new sum %04X: verified' % (
+            ', '.join(what) or 'nothing', len(diff), brec_sum(nb)))
         out = a.out or os.path.splitext(a.input)[0] + '-patched.BIN'
         open(out, 'wb').write(nb)
         print('wrote ' + out)
