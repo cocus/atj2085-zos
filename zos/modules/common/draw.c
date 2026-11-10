@@ -48,11 +48,16 @@ void spk_icon(uint8_t x, uint8_t y, uint8_t stereo, uint16_t fg, uint16_t bg)
 static const uint8_t batt_rects[] = { 0, 0, 17, 9, 0,  1, 1, 15, 7, 1,  17, 2, 2, 5, 0,  2, 2, 0, 5, 2,
     9, 1, 2, 1, 3,  8, 2, 2, 1, 3,  7, 3, 2, 1, 3,  5, 4, 7, 1, 3,  9, 5, 2, 1, 3,  8, 6, 2, 1, 3,
     7, 7, 2, 1, 3 };
+SFR(DRAW_BATT, P_BATT);
+SFR(DRAW_USBST, P_USB_STAT);
 void batt_icon(uint8_t x, uint8_t y, uint16_t fg, uint16_t bg)
 {
-    uint8_t s = HAL_BATT, l = s & HAL_BATT_LEVEL, e, f, n, i;
+    uint8_t s = HAL_BATT, l, e, f, n, i;
     uint16_t c[4];
     const uint8_t *r = batt_rects;
+    if (!(s & HAL_BATT_VALID))                 /* not sampled yet, or a core without EV_BATT: the ports */
+        s = (DRAW_BATT & BATT_LEVEL) | (DRAW_USBST & USBST_VBUS ? HAL_BATT_VBUS : 0);
+    l = s & HAL_BATT_LEVEL;
     if (s & HAL_BATT_VBUS) { e = BATT_EMPTY_USB; f = BATT_FULL_USB; }
     else { e = BATT_EMPTY_BAT; f = BATT_FULL_BAT; }
     n = l < e ? 0 : l >= f ? BATT_SEGS : (uint8_t)((uint8_t)((l - e + 1) * BATT_SEGS) / (uint8_t)(f - e + 1));
