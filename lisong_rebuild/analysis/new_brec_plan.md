@@ -211,3 +211,13 @@ If we do it: keep stock's BREC code as the starting point by *hooking* (brecpatc
   model in `emu/soc.py brom_load_brec`), `zos/tools/emu_usb_test.py`.
 * Read first: this file, `boot.md`, `zos_native_boot.md`, `tools/fwpatch/README.md`, `zos/NAND_AND_BOOT.md`
   (sections 4-5), memory notes (zos-project, atj2085-device-facts, zos-build-deploy, emulator-usage).
+
+## 8. M1 status (newbrec/, emulator-tested only)
+
+Done in `newbrec/` (README there): 16 KB image from our own source, BROM model accepts it, header + entry bytes equal the
+stock family (FIRMWARE module check), logo + menu USB / STOCK / ZOS / OS2 with keys, USB = raw NAND disk (READ/WRITE(10),
+erase on the first sector of a block, ECC + BREC spare), STOCK = reload the stock record from block 2/3 (blocks 2..7 of the
+dump are erased) through a ZRAM2 loader and jump to 0 (stock OS boots to its menu in the emulator), `newbrec/tools/nandtool.py`
+(info, dump, read-block, write-block, erase, restore, flash-brec, put-slot) tested end to end on the emulated disk.
+Size: 8687 B code of 9447 available + 707 B variables; 760 B code space left. Not in M1: ZOS/OS2 start, BOOT.CFG, spare-area
+access (FTL metadata), FTL user-disk LUN, A/B repair (M3). Device test pending.

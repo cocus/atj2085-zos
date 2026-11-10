@@ -20,6 +20,11 @@
 !/zos/
 /zos/out/
 
+# ---- newbrec: our own boot record (build output in out/ is ignored) ----------------------
+!/newbrec/
+/newbrec/out/
+/newbrec/**/__pycache__/
+
 # ---- emulator -----------------------------------------------------------------------------
 !/atj2085emu/
 /atj2085emu/*
