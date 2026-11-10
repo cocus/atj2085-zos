@@ -110,6 +110,24 @@ and `jp 0x0200` (the ADFU entry). ~40-60 bytes of BREC code, no USB stack in the
   "ROM recovery"; the same ROM code can be entered from a running BREC); does the ADFU entry need anything else set
   by the 0x8030 reset code (clock, pull-up 0x3E, watchdog)?
 
+## 1.4 FINAL for the USB item (user, 2026-11-10: "then use MSC, which should be the quickest. ADFU doesn't make that much sense")
+
+Own MSC in the BREC, NOT the ADFU jump of 1.3 (kept above for reasoning only). Simplest useful form first:
+* One LUN: the **whole NAND as raw data sectors** in physical order (block, page, 512-byte sector). READ(10) always;
+  WRITE(10): the first page of a block erases that block, pages are programmed in ascending order, hardware ECC and the
+  BREC-style spare (FF x8, ECC x4, FF FF 55 FF) are generated automatically. Plain BOT + the minimum SCSI set (INQUIRY,
+  TEST UNIT READY, REQUEST SENSE, READ CAPACITY, READ/WRITE(10), MODE SENSE(6), PREVENT/ALLOW, START STOP).
+* NO vendor SCSI commands, no spare LUN, no FTL LUN in M1 (later, only if wanted). The PC sees a raw disk: the PC tool
+  reads/writes the physical drive (`\\.\PhysicalDriveN` on Windows, needs admin; `/dev/sdX` on Linux) with
+  block-aligned (erase-block-sized) writes. Limitation (documented): a raw write cannot restore FTL-managed areas
+  exactly (the spare bytes get the BREC format); use it for BREC blocks, payload slots, dumps of the data; full NAND
+  restores stay with s1clone in ROM-recovery mode.
+* PC tools (`newbrec/tools/nandtool.py`): `info`, `dump` (data), `read-block`, `erase`, `write-block`, `flash-brec`
+  (blocks 1 then 0, verify), `put-slot`; works on a physical-drive path or on an image file/emulator transport for
+  tests.
+* Everything else of 1.2 stands (menu USB/STOCK/ZOS/OS2, hardcoded table or BOOT.CFG if space, target layer for the
+  ximpro, STOCK = reload the stock BREC from unit 1 / blocks 2-3 and jump).
+
 ## 2. Two layers (OBSOLETE: superseded by 1.1; kept for the reasoning)
 
 **Layer 1: boot menu as stage 0 in SYSCFG.SYS** (extends zosboot; no BREC write needed, flashable with s1res):
