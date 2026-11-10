@@ -20,6 +20,8 @@
 ;;                  drain the ADC FIFO, serve the DSP), never the external window. REC uses it.
 ;;   FTLW_FW = 1    also assemble ftlw_fwwrite(): FWIMAGE copy A (firmware logical units 0..0x1F,
 ;;                  zone 0) for the FIRMWARE update. Nothing else can reach units 0..0x40.
+;;   FTLW_BREC = 1  also assemble the raw boot-record path ftlw_brec_erase/prog (FIRMWARE module):
+;;                  physical blocks 0 and 1 only, outside the FTL (NAND_AND_BOOT.md 5).
 	.include "regs.inc"
 	.globl	_nand_read, _ftl_tbl, _hal_watchdog
 .ifdef FTLW_IDLE
@@ -61,6 +63,10 @@ nw_b:	.ds	5		; copy-back target address cycles
 sw:	.ds	4		; spare bytes 0-3 read back
 nw_s:	.ds	3		; IFF, P_EMLO, P_EMHI before the selection
 nw_c:	.ds	2		; random data input column
+.ifdef FTLW_BREC
+_ftlw_brec_ecc::
+	.ds	4		; ECC bytes (spare +8..+11) of the last nw_prog
+.endif
 
 	.area	_CODE
 ;; IDLE: with FTLW_IDLE, call the module hook between the core reads of open() (mapping table,
@@ -309,12 +315,24 @@ nw_prog:
 	jr	nz, 5$
 	in	a, (P_ECC_SP8)		; +8..+11 hardware ECC
 	ld	(hl), a
+.ifdef FTLW_BREC
+	ld	(_ftlw_brec_ecc+0), a
+.endif
 	in	a, (P_ECC_SP9)
 	ld	(hl), a
+.ifdef FTLW_BREC
+	ld	(_ftlw_brec_ecc+1), a
+.endif
 	in	a, (P_ECC_SP10)
 	ld	(hl), a
+.ifdef FTLW_BREC
+	ld	(_ftlw_brec_ecc+2), a
+.endif
 	in	a, (P_ECC_SP11)
 	ld	(hl), a
+.ifdef FTLW_BREC
+	ld	(_ftlw_brec_ecc+3), a
+.endif
 	ld	a, #0xFF
 	ld	(hl), a			; +12, +13
 	ld	(hl), a
@@ -701,6 +719,65 @@ _ftlw_fwwrite::
 	ld	l, a
 	ld	h, #0
 	jp	wr_key
+.endif
+
+.ifdef FTLW_BREC
+;; ---- boot record (BREC) raw path: physical blocks 0 and 1 ONLY -----------------------------
+;; The FTL never uses blocks 0/1 (unit 0); these entries reach nothing else: any other block
+;; number -> FTLW_ERANGE, nothing sent to the chip. Format as stored by the vendor tools (dump):
+;; pages 0-7 = the 16 KB, each 512-byte sector with spare FF x8, ECC x4, FF FF 55 FF.
+;; uint8_t ftlw_brec_erase(uint8_t block)       A = 0 / 1: single-block erase (60 row D0)
+_ftlw_brec_erase::
+	cp	a, #2
+	jr	c, 1$
+	ld	a, #FTLW_ERANGE
+	ret
+1$:	rrca
+	rrca				; block bit 0 -> row0 bit 6 (NAND_ROW0_PLANE)
+	ld	(nw_a+2), a
+	xor	a, a
+	ld	(nw_a+3), a
+	ld	(nw_a+4), a
+	call	nw_sel
+	ld	hl, #nw_a+2
+	ld	bc, #(NAND_ERASE1 << 8) | 3
+	call	nw_cyc
+	ld	a, #NAND_ERASE2
+	out	(P_NAND_CMD), a
+	call	nw_wait
+	jp	nw_rel
+
+;; uint8_t ftlw_brec_prog(uint16_t bps, const void *buf512)
+;; HL = block << 5 | page << 2 | sector (block 0/1, page 0-7, sector 0-3), DE = buf (ZRAM1):
+;; one 512-byte sector + its 16 spare bytes (nw_prog with L = FFFF); ECC -> ftlw_brec_ecc
+_ftlw_brec_prog::
+	ld	a, h
+	or	a, a
+	jr	nz, 8$
+	ld	a, l
+	cp	a, #64
+	jr	nc, 8$
+	and	a, #3
+	add	a, a
+	ld	(nw_a+1), a		; column high = 2 * sector (column = sector * 512)
+	ld	a, l
+	rra
+	rra
+	and	a, #7			; page
+	bit	5, l
+	jr	z, 1$
+	or	a, #NAND_ROW0_PLANE	; block 1
+1$:	ld	(nw_a+2), a
+	xor	a, a
+	ld	(nw_a), a
+	ld	(nw_a+3), a
+	ld	(nw_a+4), a
+	ld	hl, #0xFFFF
+	ld	(nw_l), hl
+	ex	de, hl
+	jp	nw_prog
+8$:	ld	a, #FTLW_ERANGE
+	ret
 .endif
 
 ;; uint8_t ftlw_sync(uint32_t lba, uint16_t n)   HL:DE = lba, n on the stack

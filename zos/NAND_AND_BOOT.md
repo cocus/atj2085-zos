@@ -10,7 +10,7 @@ measured on this player's dump `readback-my-ximpro.s1clone` and firmware `my-xim
 |---|---|---|
 | Chip mask ROM, **BROM** (8 KB, bank 0 at 0x8000) | reset code, NAND boot loader, USB recovery mode (ADFU, VID 10D6 PID FF51) | no |
 | Chip mask ROM, **TROM** (21 KB, bank 2) | DSP coefficient tables (FFT/DCT twiddles, decoder tables) - not code | no |
-| NAND **blocks 0 and 1** | **BREC** (`BRECF641.BIN`, 16 KB, one copy per block): the boot record | only by GiveIO / ROM recovery tools |
+| NAND **blocks 0 and 1** | **BREC** (`BRECF641.BIN`, 16 KB, one copy per block): the boot record | ROM recovery tools; zos FIRMWARE `BREC UPDATE/RESTORE` (section 5, emulator-verified only); **not** s1res |
 | NAND **firmware area** (FTL logical units 0x00-0x3F) | **FWIMAGE.FW** (6.4 MB file system image), copy A + copy B | s1res (normal ADFU) writes copy A |
 | NAND **user disk** (FTL logical units 0x40-) | VM settings (stock), FAT16 volume (your files, `ZOS.AP`, `*.ZM`, `ZOS.CFG`) | USB mass storage, zos |
 
@@ -57,7 +57,9 @@ Every 512-byte sector carries 16 spare bytes: `FF FF L_lo L_hi FF FF FF FF ECC(4
 | 0x41 - 0xF5F | ~968 MB | **user disk**: FAT16 superfloppy, boot sector at user-disk sector 0x200 (= unit 0x41) |
 
 User-disk sector S -> logical unit 0x40 + S/512, sector S%512 (zos `hal_blk_read(lba)` = sector 0x200 + lba).
-zos never writes units 0x00-0x40 or blocks 0/1: its write path (`modules/common/ftlw.inc`) refuses them.
+zos never writes units 0x00-0x40 or blocks 0/1 through the FTL: its write path (`modules/common/ftlw.inc`)
+refuses them. The only exceptions are in the FIRMWARE module: FWIMAGE copy A (`ftlw_fwwrite`) and the raw
+boot-record path `ftlw_brec_erase/prog` (blocks 0 and 1 only, section 5).
 
 ## 3. Boot process
 
@@ -118,5 +120,73 @@ Consequence for updates (zos FIRMWARE module, s1res): write copy A only and neve
 interrupted write is undone by the next boot. Residual risk (also stock): a power loss during
 BREC's own A -> B copy leaves B with A's header but partial data; since BREC only checks B's
 header while A is valid, B stays silently bad until A also breaks (then: ROM recovery).
-4. BREC unreadable: the BROM enters USB recovery by itself -> s1clone / vendor tool with the dump
+4. BREC unreadable (no block 0-3 passes the check, section 5.1): the BROM enters USB recovery by itself -> s1clone / vendor tool with the dump
    (`readback-my-ximpro.s1clone` holds the whole NAND).
+
+## 5. The boot record in NAND, and how zos rewrites it
+
+### 5.1 Physical layout (measured on the dump, BROM loader disassembled)
+
+| | block 0 | block 1 |
+|---|---|---|
+| pages 0-7 (2048 + 64 bytes each) | BREC bytes 0x0000-0x3FFF, page p = bytes p*0x800.. | identical copy (dump: byte-identical, data and spare) |
+| pages 8-63 | erased (all FF, data and spare) | erased |
+
+* Every 512-byte sector g (4 per page) has the 16-byte spare group at column 0x800 + 16g:
+  `FF FF FF FF FF FF FF FF  ECC0 ECC1 ECC2 ECC3  FF FF 55 FF` - the user-disk format (nand_ftl.md 2.2)
+  with bad-block byte 0 = FF, byte 1 = FF and **logical unit FF FF** (no FTL unit). ECC = the
+  controller's 24-bit Hamming code (ports 0xCD, 0xCC, 0xCF, 0xCE; nand_ftl.md 1.5); all 64 sectors of
+  both blocks match it. Blocks 0/1 are the two planes of physical unit 0, which the FTL never uses
+  (the mount scan does not include unit 0, boot.md 3; ftlw.inc cannot address it).
+* **What the mask ROM checks** (BROM loader 0x8100, copied to and run at 0x4000; large-page path
+  0x4213, sector read 0x439B, check 0x436E): for block 0, 1, 2, 3 in turn it reads the **data columns
+  of pages 0-7** (32 x 512 bytes by DMA2, ports 0x14-0x21, into RAM 0x0000) and accepts the first block
+  whose u16 at 0x3FFC is `0x55AA` and whose u16 at 0x3FFE equals the 16-bit sum of the little-endian
+  words 0x0000-0x3FFC. **It reads no spare byte, no bad-block marker and does not use the ECC engine**
+  (an earlier note in usb_msc.md said so; the loader has no access to ports 0xCC-0xCF). If no block
+  passes: the USB recovery code (ROM 0x9000) runs. So a half-written block 0 falls back to block 1.
+  BREC itself starts at 0x0000 with `jp 0x0200` and the text "BREC".
+* zos writes the same format as the vendor tool did: an **identical** BREC rewritten by zos gives
+  pages that are byte-identical to the dump, data and spare (emulator check below).
+
+### 5.2 BREC BACKUP / UPDATE / RESTORE (FIRMWARE module)
+
+* **BREC BACKUP**: reads block 0 (or block 1 if block 0 is invalid) through the core raw page read,
+  checks `0x55AA` + sum, reports whether block 1 is a valid identical copy, and saves the 16 KB as
+  `BREC.BIN` in the disk root (`BRCnnn.BIN` if `BREC.BIN` exists: the first backup is never
+  overwritten), read back through the FAT and compared with the NAND.
+* **BREC UPDATE** (`NEWBREC.BIN`) / **BREC RESTORE** (`BREC.BIN`): `BREC.BIN` must exist and be valid
+  (UPDATE makes it first if it is missing). The file must be 16384 bytes with `0x55AA` + correct sum and
+  belong to the same boot-record family as the installed one (bytes 0x0000-0x0007 and the entry code
+  0x0200-0x0214 identical); the summary shows the number of differing bytes and whether they are all
+  in the boot-screen area (0x3000-0x37FF + the sum). `>>` held 2 s writes:
+  1. block 1: single-block erase (`60 row D0`), 32 sector programs (`80`, 5 address cycles, 512 bytes by
+     DMA1 with the ECC engine running, `85` to the spare group, `FF x8, ECC, FF FF 55 FF`, `10`), then
+     every data byte and every spare byte read back (ECC = the bytes the engine produced), and the
+     block's sum re-checked;
+  2. only if block 1 verified: block 0 the same way.
+  A failure in block 1 stops before block 0 is touched. The path is separate from the FTL
+  (`ftlw_brec_erase/prog`, assembled only with `FTLW_BREC`) and refuses any block other than 0 and 1.
+* **Risk**: a boot record that passes the sum but does not run (wrong code, a hang before the LCD or
+  NAND init) makes the player unbootable, and the ROM will not enter recovery by itself because the
+  block passes its check. Recovery then needs the ROM to **fail** reading blocks 0-3: keep the NAND
+  from answering at power-up (a switch in series with the NAND CE# line, or CE# held high, until the
+  ROM has tried its four blocks), release it, and write the dump back with s1clone in ROM recovery
+  mode. Only install boot records made by `tools/brecpatch` from this player's own `BREC.BIN`.
+
+### 5.3 Emulator verification (real dump, `atj2085emu --nand`)
+The emulator now models the ROM loader (`soc.py brom_load_brec`: blocks 0-3, data of pages 0-7 through
+the NAND chip model incl. overlays, `0x55AA` + sum, first valid block; none -> stop "ROM recovery").
+* BREC BACKUP: `BREC.BIN` = the dump's BREC (md5 9e3174977a640d24fa0f2683c3645233), FAT check clean,
+  nothing written to blocks 0-3.
+* BREC UPDATE with a brecpatch output: erase block 1, 32 programs, erase block 0, 32 programs (no NAND
+  rule violation: no overprogram, NOP <= 4, ascending pages); both blocks = the patched BREC with the
+  spare format above and pages 8-63 erased. Cold boot: ROM model takes block 0, black screen + ZOS
+  emblem, stock OS to its menu. With the same FTL state, original vs patched boot record: identical
+  port I/O statistics, identical T-states to the SYSCFG jump (105.61 M), RAM at SYSCFG start identical
+  except the bitmap and the sum.
+* BREC RESTORE: blocks 0 and 1 byte-identical to the dump again (all 64 pages, data + spare), blue
+  hourglass, normal boot.
+* `NEWBREC.BIN` with one flipped bit ("55AA / SUM WRONG") and a random file with a valid sum ("NOT THIS
+  BOOT RECORD"): refused, no erase or program in blocks 0-3.
+* ROM model: block 0 erased + block 1 valid -> boots from block 1; both erased -> ROM recovery.

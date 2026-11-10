@@ -128,13 +128,21 @@ class ATJ2085:
                 self.nand.load_overlay(nand_overlay)
                 log('NAND overlay loaded from %s' % nand_overlay)
             if brec is None:
-                # the boot ROM loads BREC from block 0 pages 0-7 (copy in block 1)
-                brec = b''.join(self.nand.dump.read_raw(p)[:0x800] for p in range(8))
+                brec = self.brom_load_brec()
         # ---- load boot record and set up HLE hooks ----
-        brec = brec or fw.brec()
-        if brec is None:
+        brom_fail = brec is False
+        brec = None if brom_fail else (brec or fw.brec())
+        if brec is None and not brom_fail:
             raise ValueError('need BREC (boot record) - give an AFI image')
-        m.set_memory_block(0, bytes(brec[:0x4000]))
+        if brom_fail:
+            # BROM found no valid BREC: it would copy its USB recovery code (ROM 0x9000) to RAM
+            # and wait for the PC (ADFU PID FF51). Model: a `jr $` and a stop reason.
+            m.set_memory_block(0, bytes(0x4000))
+            m.set_memory_block(0x0200, b'\x18\xfe')
+            self.brom_recovery = True
+        else:
+            m.set_memory_block(0, bytes(brec[:0x4000]))
+            self.brom_recovery = False
         for a, d in rom.load_srec().items():       # mask-ROM C runtime library
             m.set_memory_block(a, d)
         self.rom_syms = rom.symbols()
@@ -165,6 +173,28 @@ class ATJ2085:
             if trace_syscalls or v == 0x10:      # 0x10 always: InitDSPCode hook
                 self.add_hle(v, self._trace_rst, name=RST_NAMES[v], passthru=True)
         self.add_hle(0x18, self._rst18, name='RST18 storage')
+
+    def brom_load_brec(self):
+        """Model of the mask-ROM NAND boot loader (ROM 0x8100, runs at 0x4000; large-page path
+        0x4213, sector read 0x439b, check 0x436e): for blocks 0, 1, 2, 3 (4 attempts) read the
+        DATA columns of pages 0-7 (32 x 512 bytes by DMA2, no ECC, spare not read) to RAM
+        0x0000-0x3FFF and accept the first block where word 0x3FFC == 0x55AA and word 0x3FFE ==
+        16-bit sum of the LE words 0x0000..0x3FFC. Reads go through the chip model, so NAND
+        overlays (BREC rewritten by zos) are seen. Returns the 16 KB or False (-> ROM recovery)."""
+        chip = self.nand.chips[1]
+        ppb = chip.ppb
+        for blk in range(4):
+            d = b''.join(bytes(chip.page_data(blk * ppb + p)[:0x800]) for p in range(8))
+            w = struct.unpack('<8192H', d)
+            ok = w[0x1FFE] == 0x55AA and sum(w[:0x1FFF]) & 0xFFFF == w[0x1FFF]
+            self.log('BROM: block %d BREC %s (sum %04x stored %04x sig %04x)' % (
+                blk, 'OK' if ok else 'rejected', sum(w[:0x1FFF]) & 0xFFFF, w[0x1FFF], w[0x1FFE]))
+            if ok:
+                self.brom_block = blk
+                return d
+        self.log('BROM: no valid BREC in blocks 0-3 -> ROM recovery ADFU (VID 10D6 PID FF51)')
+        self.brom_block = None
+        return False
 
     # ------------------------------------------------------------------ logging
     def _log_lcd(self, s):
@@ -710,6 +740,9 @@ class ATJ2085:
         m = self.m
         end = self.ticks + max_ticks
         self.stopped_reason = None
+        if self.brom_recovery:
+            self.stopped_reason = 'BROM: no valid BREC -> ROM recovery ADFU'
+            return self.stopped_reason
         while self.ticks < end and not self.stopped_reason:
             n = min(slice_ticks, end - self.ticks)
             m.ticks_to_stop = n

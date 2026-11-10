@@ -42,6 +42,7 @@ zos, and the hardware research notes behind all of it.
 | Power | standby like stock (long PLAY), wake by PLAY or USB | device + emulator |
 | Games | HOPBOT (an original endless runner), Klondike (draw 1/3), Spider (1/2/4 suits), Mines (3 board sizes), Snake | emulator + device |
 | Tools | system info, file browser, LCD speed/DMA tests, audio test, I2C scan, FTL test | device |
+| Boot screen | [`tools/brecpatch`](tools/brecpatch/README.md): black background + own 20x36 picture in the boot record; FIRMWARE `BREC BACKUP` / `BREC UPDATE` / `BREC RESTORE` write it (block 1, verify, then block 0) | **emulator only** |
 | Boot | [`tools/fwpatch/zospatch.py`](tools/fwpatch/README.md): patches a stock `.fw` so it boots stock unless `ZOS.AP` is on the disk (see [Install](#install-on-a-device)) | emulator; device-untested |
 
 <p>
@@ -91,9 +92,11 @@ screens use test tones and the emulator's test models of the DSP programs.
   back, and you also need both to run the emulator.
 * **zos itself writes only the user disk.** zos is started from the USB disk (by the patched
   firmware or a small launcher app). Leaving zos resets the player through the watchdog back into
-  the untouched stock firmware. zos never writes the boot record, and its NAND write path refuses
-  everything below the user disk. The one exception is **UPDATE FROM DISK** in the FIRMWARE
-  module (next point).
+  the untouched stock firmware. Its NAND write path refuses everything below the user disk. The
+  exceptions are in the FIRMWARE module: **UPDATE FROM DISK** (next point) and **BREC UPDATE /
+  BREC RESTORE**, which rewrite the boot record only when you pick them and hold `>>` (emulator-
+  verified only; a bad boot record needs ROM recovery with s1clone, see
+  [tools/brecpatch](tools/brecpatch/README.md)).
 * **The FIRMWARE update is emulator-verified only.** It rewrites FWIMAGE copy A (never copy B or
   the boot record) from `UPDATE.FW`, after the same checks the boot record runs at every boot, and
   reads everything back. If the update is interrupted (power loss), the boot record finds copy A
@@ -130,6 +133,7 @@ screens use test tones and the emulator's test models of the DSP programs.
 | `lisong_rebuild/homebrew/` | homebrew apps that run under the stock OS (launcher, ZBOOT, keytest, snake) with a tiny SDK, and `zkern/` (native-boot firmware builder) |
 | [`lisong_rebuild/tools/`](lisong_rebuild/tools/README.md) | firmware/NAND tools: AFI/FWIMAGE pack/unpack, AP/DRV containers, s1clone reader, FTL reader, NAND/firmware injectors for the emulator, Z80 disassembler |
 | [`tools/fwpatch/`](tools/fwpatch/README.md) | `zospatch.py`: generic stock-firmware patcher (boot selector stub, offline and emulator tests) |
+| [`tools/brecpatch/`](tools/brecpatch/README.md) | `brecpatch.py`: boot-screen patcher for the boot record (fill colour + picture, checksum, preview) |
 | `lisong_rebuild/analysis/` | research notes: hardware, NAND/FTL, boot, DSP interface, MP3 driver, DMA/clock, USB, audio, power, I2C/FM, native boot |
 | `docs/images/` | screenshots used here |
 

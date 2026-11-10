@@ -45,6 +45,13 @@ void    ftlw_reset(void);                     /* clear the sticky error */
  * (hal_fw_read numbering), < FTLW_FW_A_SECTORS, else FTLW_ERANGE. Copy B is never reachable. */
 #define FTLW_FW_A_SECTORS 0x4000U
 uint8_t ftlw_fwwrite(uint32_t sector, const void *buf512);
+/* Only with FTLW_BREC = 1 (FIRMWARE module): the boot record, raw NAND physical blocks 0/1 (outside
+ * the FTL). erase: one block (0 or 1, else FTLW_ERANGE, nothing done). prog: bps = block << 5 |
+ * page << 2 | sector (< 64) -> 512 data bytes + spare FF x8, ECC, FF FF 55 FF (the vendor format);
+ * the 4 ECC bytes written are left in ftlw_brec_ecc. Not sticky, independent of the FTL state. */
+uint8_t ftlw_brec_erase(uint8_t block);
+uint8_t ftlw_brec_prog(uint16_t bps, const void *buf512);
+extern uint8_t ftlw_brec_ecc[4];
 /* Only with FTLW_IDLE = 1: the module provides this; called in every NAND busy-wait poll with
  * CE1 selected and interrupts off (ports and RAM below 0x8000 only). */
 void    ftlw_idle(void);

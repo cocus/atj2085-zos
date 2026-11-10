@@ -287,7 +287,9 @@ Spec and evidence: `lisong_rebuild/analysis/nand_ftl.md`; reference FTL reader:
 * **What runs for real:** BREC 0x1B12 (LCD init, flash detect -> RAM 0x0080 = `02 01 .. 0x008A=0x1EC0`,
   spare scan of both zones, temp-unit erase, table copy rewrite), the FW reader 0x3FDB (only traced:
   log lines `FWREAD ... [NAND]`), UD_SF641 RST 18h (`UDLOG=1` traces it), VM reads/writes, FS_FAT16.
-  BREC is taken from dump block 0. `NANDLOG=1` logs every CLE/sequencer command and program.
+  BREC is loaded by a model of the mask-ROM loader (`soc.py brom_load_brec`, BROM 0x4213/0x436E): blocks
+  0-3, data of pages 0-7 through the chip model (overlays included), the first block with `0x55AA` + correct
+  sum; no valid block -> the run stops with "ROM recovery". `NANDLOG=1` logs every CLE/sequencer command and program.
 * **Still HLE'd in this mode:** only the RAM 0x0037 irq-nesting fix (set to 0 when SYSCFG starts; BREC
   leaves 0x76 there and SYSCFG's vector page sets 1 - the real-init run confirms it is needed) and the DSP.
 * **Timing:** BREC init takes 105 M T-states (the spare scan), menu at ~300 M. Run speed ~40-55 M T/s.
