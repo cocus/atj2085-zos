@@ -15,3 +15,15 @@ ON        | ON                    | SI
 OFF       | OFF                   | NO
 NOTE      | SAVED ON EXIT         | SE GUARDA AL SALIR
 FOOTER    | PLAY:+ VOL:- MENU:OK  | PLAY:+ VOL:- MENU:OK
+CLOCK     | SET CLOCK             | AJUSTAR HORA
+CLKTITLE  | SET CLOCK             | AJUSTAR HORA
+YEAR      | YEAR                  | ANO
+MONTH     | MONTH                 | MES
+DAY       | DAY                   | DIA
+HOUR      | HOUR                  | HORA
+MINUTE    | MINUTE                | MINUTO
+CLKFT1    | <> VALUE  VOL:NEXT    | <> VALOR  VOL:SIG
+CLKFT2    | PLAY:SAVE MENU:BACK   | PLAY:OK MENU:SALIR
+DSYES     | DS3231 FOUND          | DS3231 HALLADO
+DSOSF     | DS3231 NOT SET        | DS3231 SIN HORA
+DSNO      | NO DS3231             | SIN DS3231

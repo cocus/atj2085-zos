@@ -31,6 +31,9 @@ Emulator: `lisong_rebuild/tools/emurun.py build_v04/homebrew-launcher-v04.fw OUT
 ### Kernel
 * **Interrupts** (`targets/atj2085/isr.s`): own IM1 handler; only the RTC source is enabled (port
   0x27 = 0x20): 10 ms timer â†’ tick + key scan every 20 ms, 2 Hz â†’ `EV_SECOND_HALF`.
+* **Wall clock** (`targets/atj2085/clock.s`, `hal/hal.h` HAL_CLK): the same 2 Hz interrupt keeps
+  hh:mm:ss + a day count in a 17-byte block in HAL_SHARED and posts `EV_TIME` when the minute changes;
+  SHELL starts it (DS3231 > `ZOS.CFG` anchor > build time), SETTINGS sets it. See [../docs/clock.md](../docs/clock.md).
 * **Events** (`core/event.c`): ISR-safe ring buffer; `ev_wait(&e, timeout)` sleeps with `HALT`
   between interrupts and kicks the watchdog.
 * **Keys**: GPIO B scanned directly (board wiring from the stock key driver): MENU, LEFT, RIGHT,

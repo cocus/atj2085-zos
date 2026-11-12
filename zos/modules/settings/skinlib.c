@@ -2,3 +2,5 @@
 #include "../common/draw.c"
 #include "../common/cfg.c"
 #include "../common/beep.c"
+#include "../common/rtc.c"
+#include "../common/ds3231.c"

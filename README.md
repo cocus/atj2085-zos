@@ -38,7 +38,8 @@ zos, and the hardware research notes behind all of it.
 | Firmware | `FIRMWARE.ZM`: back up the firmware area to `FIRMWARE.FW` on the disk (read back and compared); update from `UPDATE.FW` with the same checks the boot record does, write copy A, read back (see [Safety](#safety-read-this-first)) | backup: device; update: **emulator only** |
 | FM radio | TEA5767 or RDA5807 tuner (probed) over bit-banged I2C, tune/seek, RDS name + RadioText (RDA), volume, station kept in `ZOS.CFG`, optional USB audio output | device (TEA); RDA emulator only |
 | USB | full-speed device stack: mass storage (read/write), CDC-ACM debug console, USB Audio Class capture (mic / FM) | emulator; partly device |
-| Settings | language, contrast, backlight timeout, battery icon, key beep, stored in `ZOS.CFG` | device |
+| Settings | language, contrast, backlight timeout, battery icon, key beep, date and time (SET CLOCK), stored in `ZOS.CFG` | device (clock: emulator) |
+| Clock | OS wall clock (HH:MM in the title bars, date + time in SYSINFO, `EV_TIME` each minute): started at boot from a DS3231 on the tuner's I2C bus, else the last time saved in `ZOS.CFG`, else the build date; kept by the 2 Hz tick, corrected from the MCU RTC counter after standby; SET CLOCK writes the DS3231 too, see [docs/clock.md](docs/clock.md) | emulator only (needs the new core in the firmware; the DS3231 is untested on the device) |
 | Power | standby like stock (long PLAY), wake by PLAY or USB | device + emulator |
 | Games | HOPBOT (an original endless runner), Klondike (draw 1/3), Spider (1/2/4 suits), Mines (3 board sizes), Snake | emulator + device |
 | Tools | system info, file browser, LCD speed/DMA tests, audio test, I2C scan, FTL test | device |

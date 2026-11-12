@@ -42,5 +42,5 @@ static __at(HAL_SHARED) mus_shared_t mus_sh;   /* absolute: no storage allocated
 #define MUS (&mus_sh)
 /* the last 48 bytes of HAL_SHARED: skin colours (common/skin.h), zos settings (core/config.h),
  * SHELL/FM state */
-typedef char mus_shared_fits[sizeof(mus_shared_t) <= 512 - 48 ? 1 : -1];
+typedef char mus_shared_fits[sizeof(mus_shared_t) <= 444 ? 1 : -1];     /* below HAL_CLK (hal/hal.h) */
 #endif

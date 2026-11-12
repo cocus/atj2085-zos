@@ -8,8 +8,11 @@ enum { EV_NONE, EV_KEY_DOWN, EV_KEY_UP, EV_KEY_REPEAT, EV_SECOND_HALF, EV_QUIT,
        EV_POWER,            /* PLAY held 2 s (rest of that press swallowed): power off. A module
                                leaves like on MENU (audio off, resume point kept) with MOD_POWER_REQ
                                set (core/module.h); SHELL then does the stock standby */
-       EV_BATT };           /* battery level / USB power changed (debounced; code 0, state in
+       EV_BATT,             /* battery level / USB power changed (debounced; code 0, state in
                                HAL_BATT): modules showing the battery icon redraw it (skin_batt) */
+       EV_TIME };           /* the wall clock's minute changed (code 0; time in HAL_CLK, hal/hal.h):
+                               modules showing HH:MM redraw it (skin_time). Posted by the core's 2 Hz
+                               interrupt only while a clock is running (HAL_CLK->src != 0) */
 
 typedef struct { uint8_t type, code; } event_t;
 

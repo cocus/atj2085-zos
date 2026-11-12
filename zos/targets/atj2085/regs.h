@@ -177,7 +177,12 @@
 /* ---- RTC, watchdog --------------------------------------------------------------------------- */
 #define P_RTCCTL        0x43    /* 7 alarm, 6 timer (10 ms) enable, 5 2 Hz IRQ enable, 4 clear, 3 load */
 #define RTCCTL_STANDBY  0x04    /*   register default: alarm, timer and 2 Hz IRQ off (stock standby) */
+#define RTCCTL_LATCH    0x08    /*   latch the 24-bit 2 Hz counter for reading (stock: RMW |= 8, then read 45h) */
+#define RTCCTL_CLEAR    0x10    /*   clear the counter (never done by zos) */
 #define P_RTCST         0x44
+#define P_RTCT_LO       0x45    /* counter bits 7-0, 15-8, 23-16 (read-only, after the latch) */
+#define P_RTCT_MI       0x46
+#define P_RTCT_HI       0x47
 #define RTC_TICK        0x02    /* 10 ms timer pending */
 #define RTC_HALFSEC     0x01
 #define P_WDT           0x4E

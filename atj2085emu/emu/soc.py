@@ -63,7 +63,7 @@ CPU_HZ = 12_000_000     # GUESS: only used to pace the RTC tick; real clock is P
 
 class ATJ2085:
     def __init__(self, fw, log=print, brec=None, trace_syscalls=True, disk=None, dsp=None,
-                 nand=None, nand_overlay=None, nand_cache=None, tuner=None):
+                 nand=None, nand_overlay=None, nand_cache=None, tuner=None, rtc=None, rtc_counter=0):
         self.fw = fw
         self.log = log
         self.m = z80.Z80Machine()
@@ -105,13 +105,18 @@ class ATJ2085:
         self.key_model = KeyModel()
         # optional FM tuner on the GPIO C bit-banged I2C bus (emu/i2cbus.py): 'tea' or 'rda'
         self.i2c = None
-        if tuner:
+        if tuner or rtc:       # rtc: DS3231 at 0x68 on the same bus (see i2cbus.py; 'none' tuner = DS3231 only)
             from .i2cbus import I2CBus
-            self.i2c = I2CBus(self, tuner, log=log)
+            self.i2c = I2CBus(self, tuner or 'none', log=log, rtc=rtc)
         self.rtc_next = 0
         self.rtc_fast_period = CPU_HZ // 100     # GUESS 10 ms
         self.rtc_slow_div = 50                  # GUESS: bit0 every 0.5 s
         self.rtc_cnt = 0
+        # MCU RTC counter: 24 bit, 2 Hz (ports 45h-47h, read after the latch: port 43h bit 3; bit 4 clears).
+        # rtc_cbase = the value at emulated time 0 (tests add to it to emulate time passing while the CPU
+        # was stopped, e.g. standby); no counter overflow flag modelled
+        self.rtc_cbase = rtc_counter
+        self.rtc_latch = 0
         self.halted_ticks = 0
 
         m = self.m
@@ -658,6 +663,8 @@ class ATJ2085:
             v = self._mint_status()
         elif p == 0x44:
             v = self.ports[0x44]
+        elif 0x45 <= p <= 0x47:
+            v = (self.rtc_latch >> (8 * (p - 0x45))) & 0xff
         elif p == 0x43:
             # RTC_CTRL bit3: busy while an RTC/LOSC register update is in progress;
             # code at bank-A 0x042D spins on it -> report "done" immediately (model).
@@ -694,6 +701,11 @@ class ATJ2085:
             self.ports[0x25] &= ~v & 0xff
             return
         self.ports[p] = v
+        if p == 0x43:
+            if v & 0x10:                                   # clear the counter
+                self.rtc_cbase = -(self.rtc_cnt // self.rtc_slow_div)
+            if v & 0x08:                                   # latch it for reading 45h-47h
+                self.rtc_latch = self.rtc_counter()
         if p == 0x02:
             self._ext_select()
         elif p == 0x05:
@@ -709,6 +721,9 @@ class ATJ2085:
             self.i2c.pins_changed()
         if self.key_model and p in (0xee, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xfe, 0xff, 0xef, 0xc1):
             self.key_model.port_out(self, p, v)
+
+    def rtc_counter(self):
+        return (self.rtc_cnt // self.rtc_slow_div + self.rtc_cbase) & 0xFFFFFF
 
     def _mint_status(self):
         s = self.ports[0x26]

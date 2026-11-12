@@ -43,6 +43,12 @@ void    skin_title(const char *title);                           /* title bar + 
  * ev_get that do that themselves (the event is still returned) - use them while the title bar is
  * on the screen. skinlite.c: no battery icon, plain ev_wait / ev_get. */
 void    skin_batt(void);
+/* HH:MM in the title bar (24 h): skin_title() draws it when a clock runs (rtc.h) and the title leaves
+ * room (next to the battery icon, else at the left edge); on EV_TIME (the minute changed) skin_wait /
+ * skin_get call skin_time() = only the time is redrawn. Define SKIN_NO_TIME before including skin.c to
+ * leave it out. skinlite.c has it too (right edge). Players (MP3PLAY/DECPLAY): MUSIC draws it with the
+ * title; their title ("NOW PLAYING") has no room, nothing to update. */
+void    skin_time(void);
 uint8_t skin_wait(event_t *e, uint16_t timeout);
 uint8_t skin_get(event_t *e);
 void    skin_footer(const char *text);                           /* bottom line in sk.dim */

@@ -6,7 +6,8 @@
  * Text, one KEY=VALUE per line, also editable on the PC:
  *   LANG=EN|ES  CONTRAST=0..38  BACKLIGHT=0|10|30|60 (s)  BATTERY=0|1  BEEP=0|1  FMUSB=0|1  VOLUME=0..31
  *   RESDIR=cluster  RESFILE=cluster  RESPOS=file position in 16 KB units  (last file played)
- *   FMFREQ=875..1080 (100 kHz)  FMVOL=0..31  (FM station, common/fmstate.h; absent = FM defaults) */
+ *   FMFREQ=875..1080 (100 kHz)  FMVOL=0..31  (FM station, common/fmstate.h; absent = FM defaults)
+ *   CLOCKDAY=days since 2000-01-01  CLOCKMIN=minute of the day  (the clock anchor, cfg.h) */
 #include <stdint.h>
 #include <string.h>
 #include "../../hal/hal.h"
@@ -15,10 +16,14 @@
 #include "ftlw.h"
 #include "cfg.h"
 #include "fmstate.h"
+#include "rtc.h"
 
 #define CFG_BUF ((char *)HAL_MODRAM_BASE)            /* ZRAM1: the NAND DMA source must be < 0x4000 */
 #define CFG_OLD (CFG_BUF + ZCFG_FILE_SIZE)            /* what is on the disk now */
 static const uint8_t bl_secs[NBL] = { 0, 10, 30, 60 };
+uint16_t cfg_aday, cfg_amin;
+uint8_t cfg_anchor_force;
+#define ANCHOR_SLACK 30      /* minutes the stored anchor may lag before it forces a write */
 
 static uint8_t cfg_find(fat_dirent_t *e)
 {
@@ -65,6 +70,8 @@ static void cfg_line(char *l)
     else if (!strcmp(l, "RESDIR")) ZCFG->res_dir = n;
     else if (!strcmp(l, "RESFILE")) ZCFG->res_file = n;
     else if (!strcmp(l, "RESPOS")) ZCFG->res_pos = (uint16_t)n;
+    else if (!strcmp(l, "CLOCKDAY")) cfg_aday = (uint16_t)n;
+    else if (!strcmp(l, "CLOCKMIN")) { if (n < 1440) cfg_amin = (uint16_t)n; }
     else if (!strcmp(l, "FMFREQ")) { if (n >= FM_FREQ_MIN && n <= FM_FREQ_MAX) { fm_def(); FMST->f10 = FMST->sv_f10 = (uint16_t)n; } }
     else if (!strcmp(l, "FMVOL")) { if (n <= FM_VOL_MAX) { fm_def(); FMST->vol = FMST->sv_vol = (uint8_t)n; } }
 }
@@ -77,6 +84,7 @@ void cfg_load(void)
     fat_file_t f;
     fat_dirent_t e;
     memset(ZCFG, 0, sizeof *ZCFG);
+    cfg_aday = cfg_amin = 0;
     ZCFG->contrast = CONTRAST_DEF;
     ZCFG->flags = ZF_BATT | ZF_BEEP;
     ZCFG->vol = VOL_DEF;
@@ -91,6 +99,14 @@ void cfg_load(void)
         }
     }
     ZCFG->magic = ZCFG_MAGIC;
+}
+
+static uint16_t old_num(const char *key)             /* a 9-char "KEY=" in the old file image -> its value */
+{
+    uint16_t i;
+    for (i = 0; i + 10 <= ZCFG_FILE_SIZE; i++)
+        if (!memcmp(CFG_OLD + i, key, 9)) return (uint16_t)cfg_num(CFG_OLD + i + 9);
+    return 0;
 }
 
 static char *put(char *p, const char *k, uint32_t v)
@@ -110,6 +126,9 @@ uint8_t cfg_save(void)
     fat_dirent_t e;
     fat_file_t f;
     char *p = CFG_BUF;
+    uint16_t pre, oday = 0, omin = 0, nmin = 0;
+    clk_t t;
+    uint8_t oldok;
     if (ZCFG->magic != ZCFG_MAGIC || !cfg_find(&e)) return 0;
     memset(CFG_BUF, ' ', ZCFG_FILE_SIZE);
     memcpy(p, ZCFG->lang == LANG_ES ? "LANG=ES\r\n" : "LANG=EN\r\n", 9); p += 9;
@@ -122,9 +141,21 @@ uint8_t cfg_save(void)
     p = put(p, "RESDIR=", ZCFG->res_dir);
     p = put(p, "RESFILE=", ZCFG->res_file);
     p = put(p, "RESPOS=", ZCFG->res_pos);
-    if (FMST_OK) { p = put(p, "FMFREQ=", FMST->f10); put(p, "FMVOL=", FMST->vol); }
-    fat_open(&f, &e);                                 /* unchanged: no NAND write (wear) */
-    if (fat_read(&f, CFG_OLD, ZCFG_FILE_SIZE) == ZCFG_FILE_SIZE && !memcmp(CFG_OLD, CFG_BUF, ZCFG_FILE_SIZE))
+    if (FMST_OK) { p = put(p, "FMFREQ=", FMST->f10); p = put(p, "FMVOL=", FMST->vol); }
+    fat_open(&f, &e);
+    oldok = fat_read(&f, CFG_OLD, ZCFG_FILE_SIZE) == ZCFG_FILE_SIZE;
+    pre = p - CFG_BUF;
+    if (CLK_OK) {                                     /* the clock anchor, last in the file */
+        clk_get(&t);
+        nmin = t.hour * 60 + t.min;
+        if (oldok) { oday = old_num("CLOCKDAY="); omin = old_num("CLOCKMIN="); }
+        if (oldok && !cfg_anchor_force && oday == t.day && nmin >= omin && nmin - omin < ANCHOR_SLACK &&
+            !memcmp(CFG_OLD, CFG_BUF, pre))
+            goto saved;                               /* only the anchor would change: keep the file */
+        p = put(p, "CLOCKDAY=", t.day);
+        put(p, "CLOCKMIN=", nmin);
+    }
+    if (oldok && !memcmp(CFG_OLD, CFG_BUF, ZCFG_FILE_SIZE))   /* unchanged: no NAND write (wear) */
         goto saved;
     if (ftlw_write(fat_clus_lba(e.clus), CFG_BUF) || ftlw_flush()) return 0;
 saved:

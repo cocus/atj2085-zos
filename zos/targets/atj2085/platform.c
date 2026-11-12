@@ -155,6 +155,13 @@ static void batt_sample(void)
     }
 }
 
+/* ------------------------------------------------------------------------------- wall clock */
+/* hal/hal.h HAL_CLK, advanced by the MCU RTC counter's delta from the 2 Hz interrupt (clock.s): a late
+ * interrupt does not lose time; a jump > 255 (standby, counter cleared) ticks once, re-bases and counts
+ * in err (SHELL adds the standby gap); a counter that does not move ticks like the interrupt. */
+void clk_irq(void);
+typedef char ev_time_is_9[EV_TIME == 9 ? 1 : -1];        /* clock.s */
+
 /* ------------------------------------------------------------------------------- time */
 /* called from the interrupt handler with the RTC status (port 0x44, already acknowledged) */
 void zos_rtc_irq(uint8_t st)
@@ -166,6 +173,7 @@ void zos_rtc_irq(uint8_t st)
     if (st & RTC_HALFSEC) {                 /* 2 Hz */
         ev_post(EV_SECOND_HALF, 0);
         batt_sample();
+        clk_irq();
         if (ZCFG->magic == ZCFG_MAGIC && ZCFG->backlight && ZCFG->backlight < NBL && !bl_off &&
             ++bl_idle >= bl_halfsecs[ZCFG->backlight])
             bl_off = 1;

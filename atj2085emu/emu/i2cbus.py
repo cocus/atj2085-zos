@@ -11,6 +11,11 @@ address seems to ACK and FM shows a TEA5767).
           a scripted RDS stream (groups 0A + 2A every ~88 ms, with block errors) on the stations
           that have RDS.
 
+Optional RTC (rtc=SPEC / --rtc): a DS3231 at 0x68 on the same bus (registers 00h-12h, BCD, 24 h or 12 h
+mode as written, status 0Fh bit 7 OSF; the time runs with the emulated T-states; writes persist for the run
+and are logged in Ds3231.writes). It coexists with any tuner model above ('none' = just the DS3231).
+SPEC: 'YYYY-MM-DDTHH:MM:SS' (valid time) or 'osf' (present, oscillator-stopped flag set, time garbage).
+
 The bus model decodes START/STOP and bits from the pin writes; the slave drives SDA (reads as the
 port value while the master's SDA output is disabled). Time = soc.ticks (T-states, CPU_HZ/s).
 """
@@ -35,7 +40,7 @@ def station_at(f10):
 
 
 class I2CBus:
-    def __init__(self, soc, kind, log=print):
+    def __init__(self, soc, kind, log=print, rtc=None):
         self.soc, self.log = soc, log
         self.scl = self.sda = 1
         self.slave_low = False
@@ -53,6 +58,9 @@ class I2CBus:
             self.devs.update({0x10: r.seq, 0x11: r.rnd, 0x60: r.tea})
         elif kind != "none":                 # none: pulled-up bus, nothing ACKs
             raise ValueError(kind)
+        self.ds = None
+        if rtc:
+            self.ds = self.devs[0x68] = Ds3231(soc, rtc)
         self.rda = self.devs[0x10].chip if 0x10 in self.devs else None
 
     # pins --------------------------------------------------------------------------------------
@@ -145,6 +153,89 @@ class I2CBus:
         self.out = self.dev.read() & 0xff
         self.bit = 0
         self.slave_low = not (self.out & 0x80)
+
+
+def _bcd(v):
+    return ((v // 10) << 4) | (v % 10)
+
+
+def _unbcd(b):
+    return (b >> 4) * 10 + (b & 15)
+
+
+class Ds3231:
+    """DS3231 RTC: pointer + auto-increment, registers 00h-06h time (BCD), 0Fh status (bit 7 OSF)."""
+    def __init__(self, soc, spec):
+        import datetime
+        self.soc = soc
+        self.regs = [0] * 0x13
+        self.regs[0x0f] = 0x08
+        self.regs[0x0e] = 0x1c
+        self.writes = []            # (ticks, pointer, value) of every register write
+        self.ptr = 0
+        self.n = 0
+        self.dirty = False
+        self.osf = spec.lower() == 'osf'
+        if self.osf:
+            self.regs[0x0f] |= 0x80
+            self.dt = datetime.datetime(2000, 1, 1)
+        else:
+            self.dt = datetime.datetime.fromisoformat(spec)
+        self.t0 = soc.ticks
+
+    def now(self):
+        import datetime
+        return self.dt + datetime.timedelta(seconds=(self.soc.ticks - self.t0) / self.soc.CPU_HZ)
+
+    def _refresh(self):
+        if self.osf:
+            return
+        n = self.now()
+        r = self.regs
+        r[0], r[1], r[2] = _bcd(n.second), _bcd(n.minute), _bcd(n.hour)
+        r[3], r[4], r[5], r[6] = n.isoweekday(), _bcd(n.day), _bcd(n.month), _bcd(n.year - 2000)
+
+    def begin(self, rd):
+        if rd:
+            self._refresh()
+        else:
+            self.n = 0
+        return True
+
+    def restart(self):
+        pass
+
+    def write(self, b):
+        if self.n == 0:
+            self.ptr = b % 0x13
+        else:
+            self.regs[self.ptr] = b
+            self.writes.append((self.soc.ticks, self.ptr, b))
+            self.dirty = self.dirty or self.ptr < 7
+            if self.ptr == 0x0f and not (b & 0x80):
+                self.osf = False
+            self.ptr = (self.ptr + 1) % 0x13
+        self.n += 1
+        return True
+
+    def read(self):
+        v = self.regs[self.ptr]
+        self.ptr = (self.ptr + 1) % 0x13
+        return v
+
+    def stop(self):
+        if self.dirty:
+            import datetime
+            r = self.regs
+            h = r[2]
+            hour = _unbcd(h & 0x1f) % 12 + (12 if h & 0x20 else 0) if h & 0x40 else _unbcd(h & 0x3f)
+            try:
+                self.dt = datetime.datetime(2000 + _unbcd(r[6]), _unbcd(r[5] & 0x1f), _unbcd(r[4]), hour,
+                                            _unbcd(r[1]), _unbcd(r[0]))
+            except ValueError:
+                self.dt = datetime.datetime(2000, 1, 1)
+            self.t0 = self.soc.ticks
+            self.dirty = False
 
 
 class Tea5767:

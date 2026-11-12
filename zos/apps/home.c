@@ -29,6 +29,7 @@ void home(void)
     const char *name = shell;
     uint16_t r;
     memset((void *)HAL_SHARED, 0, 512);          /* power-on: stock leftovers, no stale magics */
+    HAL_CLK->core = HAL_CLK_CORE;                /* this core keeps the wall clock (hal.h); SHELL starts it */
     for (;;) {
         if (mod_load(name, hal_pages[0], &hdr) != MOD_OK) {
             if (name == shell) break;            /* no shell: fallback list */

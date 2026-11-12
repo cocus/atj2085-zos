@@ -66,6 +66,31 @@ void hal_irq_mask(uint8_t set, uint8_t clr);
 #define HAL_BATT_VALID  0x80
 #define HAL_BATT_VBUS   0x10         /* USB power present (the level then reads the charger) */
 #define HAL_BATT_LEVEL  0x0F         /* ADC level (targets/<t>/board.h: icon calibration) */
+/* Wall clock: 17 bytes at HAL_SHARED+444 (survive module chaining, cleared at boot). The core's 2 Hz
+ * interrupt ticks the first 8 (targets/<t>/clock.s: plain software ticks, the core has no room for more);
+ * modules read them directly (modules/common/skintime.h, rtc.h) - no API entries, so modules keep working
+ * with an OLDER core: it never writes `core`, so modules then show no time and nothing else changes.
+ *   src   0 = no clock (the core does not tick), else where the time came from (HAL_CLK_*)
+ *   half  0/1: the half-second phase; sec/min/hour = time of day; day = days since 2000-01-01
+ *   core  HAL_CLK_CORE (written by home()): this core has the clock
+ * EV_TIME (core/event.h) is posted whenever the minute changes. To set the time a module writes src = 0
+ * first, then the fields, src last (rtc.c clk_set).
+ * Module side (rtc.c): the MCU RTC counter (24 bit, 2 Hz, ports 45h-47h) is the running time base:
+ *   cnt   the counter and base* the time of day it belongs to when the clock was set / last re-based:
+ *         now = base + (counter - cnt) / 2 s. SHELL compares it with the software time (clk_sync) on every
+ *         start and each minute and after standby, and corrects the clock: a stopped tick (standby, long
+ *         interrupt-off windows) costs nothing. A counter that went backwards / was cleared: the clock
+ *         re-bases on the software time and err counts it (SYSINFO)
+ * The block lies in the free tail of the MUSIC block (music/shared.h asserts it stays below). */
+typedef struct {
+    uint8_t src, half, sec, min, hour; uint16_t day; uint8_t core;
+    uint8_t cnt0, cnt1, cnt2, err;
+    uint16_t bday; uint8_t bhour, bmin, bsec;
+} hal_clock_t;
+#define HAL_CLOCK_ADDR (HAL_SHARED + 444)
+#define HAL_CLK ((volatile hal_clock_t *)HAL_CLOCK_ADDR)
+#define HAL_CLK_CORE    0xC7
+enum { HAL_CLK_NONE, HAL_CLK_BUILD, HAL_CLK_ANCHOR, HAL_CLK_RTC };   /* src: build date / ZOS.CFG anchor / DS3231 */
 extern const uint8_t hal_pages[];    /* page ids usable for modules */
 extern const uint8_t hal_npages;
 typedef struct { uint16_t dst; const void *src; uint16_t len; } xfer_t;

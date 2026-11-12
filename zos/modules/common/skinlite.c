@@ -18,17 +18,35 @@ uint8_t skin_load(void)
     return 0;
 }
 
+#define TM_FG skc.c.fg
+#define TM_BG skc.c.bar
+#include "skintime.h"
+
 void skin_title(const char *title)
 {
-    uint8_t n = 0;
+    uint8_t n = 0, x;
     while (title[n]) n++;
+    x = LCD_W / 2 - n * (FONT_W / 2);
     gfx_fill(0, 0, LCD_W, SKIN_TITLE_H, skc.c.bar);
-    gfx_text(LCD_W / 2 - n * (FONT_W / 2), 3, title, 1, skc.c.fg, skc.c.bar);
+    gfx_text(x, 3, title, 1, skc.c.fg, skc.c.bar);
+    tm_place(x, x + n * FONT_W, LCD_W - 2 - TM_W);
+    tm_draw();
 }
 
 void skin_batt(void) { }                       /* (no battery icon here) */
-uint8_t skin_wait(event_t *e, uint16_t timeout) { return ev_wait(e, timeout); }
-uint8_t skin_get(event_t *e) { return ev_get(e); }
+void skin_time(void) { tm_draw(); }
+uint8_t skin_wait(event_t *e, uint16_t timeout)
+{
+    uint8_t r = ev_wait(e, timeout);
+    if (r && e->type == EV_TIME) tm_draw();
+    return r;
+}
+uint8_t skin_get(event_t *e)
+{
+    uint8_t r = ev_get(e);
+    if (r && e->type == EV_TIME) tm_draw();
+    return r;
+}
 
 void skin_footer(const char *text)
 {

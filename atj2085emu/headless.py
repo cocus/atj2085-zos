@@ -37,6 +37,9 @@ def main():
     ap.add_argument('--dsp-verbose', action='store_true')
     ap.add_argument('--tuner', choices=('tea', 'rda', 'none'), default=None,
                     help='FM tuner model on the GPIO C I2C bus (emu/i2cbus.py)')
+    ap.add_argument('--rtc', nargs='?', const='2030-06-15T12:34:50', default=None,
+                    help="DS3231 at 0x68 on the I2C bus: 'YYYY-MM-DDTHH:MM:SS' or 'osf' (oscillator-stopped flag set)")
+    ap.add_argument('--rtc-counter', type=int, default=0, help='MCU RTC counter (45h-47h) value at emulated time 0')
     ap.add_argument('--shots', default='', help='comma list of tick:file.png screenshots')
     ap.add_argument('--nand', default=None,
                     help='hardware-level NAND model backed by an s1clone dump (read-only); the real '
@@ -57,7 +60,8 @@ def main():
     if a.nand and disk is not None:
         ap.error('--nand and --disk are exclusive')
     emu = ATJ2085(FwImage(a.fw), log=log, disk=disk, nand=a.nand, nand_overlay=a.nand_overlay,
-                  nand_cache=os.path.join(HERE, 'work', 'nandcache') if a.nand else None, tuner=a.tuner)
+                  nand_cache=os.path.join(HERE, 'work', 'nandcache') if a.nand else None, tuner=a.tuner,
+                  rtc=a.rtc, rtc_counter=a.rtc_counter)
     if not a.no_dsp:
         emu.dsp = DspHLE(emu, sink, pacing='live' if a.audio else 'emu', log=log, verbose=a.dsp_verbose)
     shots = [(int(t), f) for t, f in (x.split(':', 1) for x in a.shots.split(',') if x)]

@@ -6,6 +6,10 @@
  * PLAY acts on release: held 2 s it is the power button instead (core EV_POWER): settings saved,
  * then the stock standby (standby.s); a module that gets EV_POWER leaves with MOD_POWER_REQ set
  * and SHELL powers off when it comes back. Wake-up: PLAY held 1 s (or a PC on USB: USB module).
+ * The wall clock (hal/hal.h HAL_CLK, ticking in the core) is started here once per boot, with the settings:
+ * DS3231 (modules/common/ds3231.c) if it answers with a valid time, else the ZOS.CFG anchor, else the build
+ * date/time (clock_boot). The core ticks in software; SHELL corrects it from the MCU RTC counter (rtc.c clk_sync)
+ * whenever it starts (a module ran), each minute and after standby.
  * Icons: icons/<NAME>.bmp (build -> icons.h, icons/README.md), by category / module name, DEFAULT otherwise. */
 #include <stdint.h>
 #include <string.h>
@@ -21,12 +25,36 @@
 #include "../common/draw.h"
 #include "../common/cfg.h"
 #include "../common/fmstate.h"
+#include "../common/rtc.h"
+#include "../common/ds3231.h"
+#include "buildtime.h"
 #include "icons.h"
 #include "strings.h"
 #include "regs.h"
 
 SFR(GPC_D, P_GPC_D);
 SFR(WDT, P_WDT);
+
+/* ---- the wall clock at boot ---------------------------------------------------------------- */
+/* start time: the build; the ZOS.CFG anchor when it is newer; the DS3231 when it has a valid time.
+ * The core (HAL_CLK) ticks from there. An older core (no clock marker): nothing is started. */
+static void clock_boot(void)
+{
+    clk_t t;
+    ds_time_t d;
+    uint8_t src = HAL_CLK_BUILD;
+    if (HAL_CLK->core != HAL_CLK_CORE) return;
+    t.day = BUILD_DAY; t.hour = BUILD_HOUR; t.min = BUILD_MIN; t.sec = 0;
+    if (cfg_aday > BUILD_DAY || (cfg_aday == BUILD_DAY && cfg_amin >= BUILD_HOUR * 60 + BUILD_MIN)) {
+        t.day = cfg_aday; t.hour = cfg_amin / 60; t.min = cfg_amin % 60;
+        src = HAL_CLK_ANCHOR;
+    }
+    if (ds_read(&d) == DS_OK) {
+        t.day = cal_day(d.year, d.month, d.date); t.hour = d.hour; t.min = d.min; t.sec = d.sec;
+        src = HAL_CLK_RTC;
+    }
+    clk_set(&t, src);
+}
 
 /* ---- what is on the disk -------------------------------------------------------------------- */
 enum { CAT_MUSIC, CAT_FM, CAT_REC, CAT_GAMES, CAT_TOOLS, CAT_USB, CAT_SETTINGS, CAT_REBOOT, NCAT, CAT_HIDDEN = 0xFF };
@@ -213,7 +241,8 @@ static int8_t power_off(void)
 {
     uint8_t why;
     MOD_POWER_REQ = 0;
-    cfg_save();                                            /* settings + resume point */
+    cfg_anchor_force = 1;
+    cfg_save();                                            /* settings + resume point + clock anchor */
     hal_backlight(0);                                      /* light off first (stock order) */
     hal_watchdog();
     lcd_cmd(LCD_DISOFF);
@@ -224,6 +253,7 @@ static int8_t power_off(void)
     wait(2);
     lcd_cmd(LCD_SLPOUT);
     wait(25);
+    clk_sync(1);                                           /* the software tick stopped in standby */
     if (why != WAKE_USB) return -1;
     hal_backlight(1);                                      /* no key press to switch it on */
     USH->magic = USB_MAGIC;                                /* the USB launcher: straight into */
@@ -251,8 +281,11 @@ uint16_t mod_main(void)
     uint8_t old, c, play = 0;
     int8_t m;
     if (!fat_mount()) return MOD_REBOOT;
-    if (ZCFG->magic != ZCFG_MAGIC) { cfg_load(); hal_lcd_contrast(ZCFG->contrast); }
-    else if (FMST_DIRTY) cfg_save();                   /* back from FM / USBAUDIO: new station */
+    if (ZCFG->magic != ZCFG_MAGIC) { cfg_load(); hal_lcd_contrast(ZCFG->contrast); clock_boot(); }
+    else {
+        clk_sync(0);                                   /* a module ran: the counter is the time base */
+        if (FMST_DIRTY) cfg_save();                    /* back from FM / USBAUDIO: new station */
+    }
     skin_load();
     scan();
     build_items();
@@ -263,6 +296,7 @@ uint16_t mod_main(void)
     for (;;) {
         if (e.type != EV_POWER) skin_wait(&e, 0);
         if (e.type == EV_KEY_DOWN) beep();             /* key beep (SETTINGS) */
+        if (e.type == EV_TIME && clk_sync(0)) skin_time();
         if (e.type == EV_POWER) {
             e.type = EV_NONE;
             play = 0;
@@ -284,7 +318,7 @@ uint16_t mod_main(void)
             if (st.top != old) { carousel_item(); continue; }
             if (e.type != EV_KEY_DOWN || e.code != KEY_PLAY) continue;
             c = items[st.top];
-            if (c == CAT_REBOOT) { cfg_save(); return MOD_REBOOT; }
+            if (c == CAT_REBOOT) { cfg_anchor_force = 1; cfg_save(); return MOD_REBOOT; }
             if (c == CAT_GAMES || c == CAT_TOOLS) {
                 st.in_list = 1; st.sel = st.first = 0;
                 build_list(); list();
