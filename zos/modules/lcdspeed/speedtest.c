@@ -31,5 +31,5 @@ void app_speedtest(void)
     gfx_num(4, 62, text_t, 2, C_OK, C_BG);
     gfx_text(70, 66, "X10MS", 1, C_DIM, C_BG);
     skin_footer(T(S_BACK));
-    do ev_wait(&e, 0); while (e.type != EV_KEY_DOWN);
+    do skin_wait(&e, 0); while (e.type != EV_KEY_DOWN);
 }

@@ -278,7 +278,7 @@ static uint8_t game(void)
         hal_watchdog();
         for (;;) {                       /* events until the next frame is due (late: the queued ones) */
             int16_t w = (int16_t)(next - hal_ticks());
-            if (w > 0 ? !skin_wait(&e, (uint16_t)w) : !ev_get(&e)) break;
+            if (w > 0 ? !skin_wait(&e, (uint16_t)w) : !skin_get(&e)) break;
             if (e.type == EV_POWER) { MOD_POWER_REQ = 1; return 2; }
             k = e.code;
             if (e.type == EV_KEY_DOWN) {

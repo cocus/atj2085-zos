@@ -499,7 +499,7 @@ uint16_t mod_main(void)
 
     for (;;) {
         e.type = EV_NONE;
-        ev_wait(&e, page ? 25 : 100);
+        skin_wait(&e, page ? 25 : 100);
         if (e.type == EV_NONE) {
             if (page) { ok_r = tea_read(); tuner_screen(f10, ok_w, ok_r); }
             continue;

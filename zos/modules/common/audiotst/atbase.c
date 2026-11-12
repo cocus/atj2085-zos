@@ -67,6 +67,7 @@ static uint8_t getkey(void)                 /* 0 = none; MENU also for EV_QUIT *
     while (ev_get(&e)) {
         if (e.type == EV_QUIT) return KEY_MENU;
         if (e.type == EV_BATT) skin_batt();           /* (skinlite: nothing) */
+        if (e.type == EV_TIME) skin_time();
         if (e.type == EV_KEY_DOWN) { key_rep = 0; return e.code; }
         if (e.type == EV_KEY_REPEAT) { key_rep = 1; return e.code; }
     }

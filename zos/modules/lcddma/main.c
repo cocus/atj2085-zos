@@ -120,7 +120,7 @@ uint16_t mod_main(void)
     skin_load();
     table();
     for (;;) {
-        ev_wait(&e, 0);
+        skin_wait(&e, 0);
         if (e.type != EV_KEY_DOWN) continue;
         if (e.code == KEY_MENU) break;
         if (e.code == KEY_VOL) {
@@ -135,7 +135,7 @@ uint16_t mod_main(void)
             dt = hal_ticks() - t0;                         /* 10 ms units for REPS screens */
             res[next] = (uint16_t)((uint32_t)dt * 10000UL / REPS);
             done[next] = tmo ? 2 : 1;
-            ev_wait(&e, 120);                              /* look at the bars */
+            skin_wait(&e, 120);                              /* look at the bars */
             next = (next + 1) % NT;
             table();
         }

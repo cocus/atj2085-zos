@@ -244,7 +244,7 @@ static uint8_t confirm(const char *what)
     gfx_text(4, 64, "RESETS TO STOCK.", 1, C_FG, C_BG);
     gfx_text(4, 84, "PLAY: GO", 1, C_OK, C_BG);
     gfx_text(4, 94, "ANY OTHER KEY: CANCEL", 1, C_DIM, C_BG);
-    do ev_wait(&e, 0); while (e.type != EV_KEY_DOWN);
+    do skin_wait(&e, 0); while (e.type != EV_KEY_DOWN);
     return e.code == KEY_PLAY;
 }
 
@@ -285,7 +285,7 @@ uint16_t mod_main(void)
     mhz100 = measure();
     draw_all();
     for (;;) {
-        ev_wait(&e, 0);
+        skin_wait(&e, 0);
         if (e.type != EV_KEY_DOWN) continue;
         if (e.code == KEY_MENU) break;
         if (e.code == KEY_RIGHT) sel = (sel + 1) % NITEMS;

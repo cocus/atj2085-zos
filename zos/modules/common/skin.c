@@ -112,9 +112,29 @@ void skin_text(uint8_t x, uint8_t y, const char *s, uint16_t fg)
 #ifndef SKIN_NO_TIME                              /* (a module can opt out when it has no room) */
 #define TM_FG sk.fg
 #define TM_BG sk.bar
+#define TM_ROWS 10                                /* rows 2..11 of the bar are restored under the time */
+static uint16_t tm_bg[TM_ROWS];
 #include "skintime.h"
+/* the TITLE.ZI colour of those rows at the middle of the time slot (one pixel column; the bar is a
+ * vertical gradient), read once per skin_title(): no disk access on EV_TIME. No image: the theme bar */
+static void tm_sample(void)
+{
+    fat_file_t f;
+    uint8_t hdr[5], px[2], r;
+    uint16_t o;
+    for (r = 0; r < TM_ROWS; r++) tm_bg[r] = C_BAR;
+    if (!tm_x || !skin_open("TITLE   ZI ", &f) || fat_read(&f, hdr, 5) != 5 || hdr[3] < TM_ROWS + 2 ||
+        tm_x + TM_W / 2 >= hdr[2])
+        return;
+    for (r = 0; r < TM_ROWS; r++) {
+        o = (uint16_t)(r + 2) * hdr[2] + tm_x + TM_W / 2;
+        if (!fat_seek(&f, 5 + (uint32_t)o * 2) || fat_read(&f, px, 2) != 2) return;
+        tm_bg[r] = ((uint16_t)px[0] << 8) | px[1];
+    }
+}
 #else
 #define tm_place(a, b, c)
+#define tm_sample()
 #define tm_draw()
 #endif
 
@@ -127,6 +147,7 @@ void skin_title(const char *title)
         skin_text(t0, 3, title, sk.fg);
     }
     tm_place(t0, t0 + w, (ZCFG_BATT ? BATT_ICON_X - 3 : LCD_W - 2) - 5 * FONT_W);
+    tm_sample();
     skin_batt();
     tm_draw();
 }

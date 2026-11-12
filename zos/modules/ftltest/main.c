@@ -142,6 +142,6 @@ uint16_t mod_main(void)
     memcpy(R->magic, "FTLT", 4);
 out:
     skin_footer("ANY KEY: BACK");
-    do ev_wait(&e, 0); while (e.type != EV_KEY_DOWN);
+    do skin_wait(&e, 0); while (e.type != EV_KEY_DOWN);
     return 0;
 }

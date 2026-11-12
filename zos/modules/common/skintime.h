@@ -28,6 +28,12 @@ static void tm_draw(void)
     b[0] = '0' + t; b[1] = '0' + h; b[2] = ':';
     for (t = 0; m >= 10; m -= 10) t++;
     b[3] = '0' + t; b[4] = '0' + m; b[5] = 0;
+#ifdef TM_ROWS                                   /* skin.c: the bar is an image (a gradient): put its own row colours
+                                                 * back under the slot, then draw only the digits' set pixels */
+    for (t = 0; t < TM_ROWS; t++) gfx_fill(tm_x, 2 + t, TM_W, 1, tm_bg[t]);
+    skin_text(tm_x, 3, b, TM_FG);
+#else
     gfx_text(tm_x, 3, b, 1, TM_FG, TM_BG);
+#endif
 }
 #endif
