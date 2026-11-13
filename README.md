@@ -88,13 +88,22 @@ zos, and the hardware research notes behind all of it.
 </p>
 <p>
 <img src="docs/images/snake.png" width="160" alt="Snake">
-<img src="docs/images/boot_stock.png" width="160" alt="Boot screen: stock boot record (blue + hourglass)">
-<img src="docs/images/boot_brec.png" width="160" alt="Boot screen: brecpatch boot record (black + ZOS emblem)">
+<img src="docs/images/settings_clock.png" width="160" alt="Settings: SET CLOCK editor">
 </p>
 
+**Power-on screen** (drawn by the boot record, before zos starts):
+
+<table>
+<tr>
+<td align="center"><img src="docs/images/boot_stock.png" width="160" alt="Power-on screen: stock boot record (blue + hourglass)"><br>stock boot record</td>
+<td align="center"><img src="docs/images/boot_brec.png" width="160" alt="Power-on screen: patched boot record (black + ZOS emblem)"><br>patched boot record (brecpatch)</td>
+</tr>
+</table>
+
 All screenshots come from the emulator (`zos/tools/emu_nand_zos.py`), scaled 3x. The audio
-screens use test tones and the emulator's test models of the DSP programs. The last two show
-the power-on screen drawn by the boot record: stock, and patched with `tools/brecpatch`.
+screens use test tones and the emulator's test models of the DSP programs. The clock in the
+title bars is the build time (the emulator has no real-time clock). The two power-on screens
+above are the stock boot record and the one patched with `tools/brecpatch`.
 
 ## Supported hardware
 
