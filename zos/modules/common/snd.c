@@ -27,15 +27,6 @@
 #include "regs.h"
 #include "snd.h"
 
-SFR(SN_PLL, P_PLLCTL);
-SFR(SN_DACCTL, P_DACCTL);
-SFR(SN_DACRATE, P_DACRATE);
-SFR(SN_DACFIFO, P_DACFIFO);
-SFR(SN_DAC_L, P_DAC_L);
-SFR(SN_DAC_M, P_DAC_M);
-SFR(SN_DAC_H, P_DAC_H);
-SFR(SN_PAVOL, P_PAVOL);
-SFR(SN_PACTL, P_PACTL);
 
 #include "sndtab.h"                       /* snd_inc[]: phase increment per note */
 
@@ -65,7 +56,7 @@ static uint8_t  pa_cur, pa_tgt, idle_t, pa_pend;
 static void sn_pa(uint8_t v)
 {
     pa_cur = v;
-    SN_PAVOL = (SN_PAVOL & ~PAVOL_MASK) | v;
+    PAVOL = (PAVOL & ~PAVOL_MASK) | v;
 }
 
 static void sn_wake(void)
@@ -211,7 +202,7 @@ static void sn_fill(void)
 {
     uint8_t n = SN_MAX_WORDS;
     while (n--) {
-        if (SN_DACFIFO & DACFIFO_FULL) return;
+        if (DACFIFO & DACFIFO_FULL) return;
         if (half) half = 0;
         else {
             if (!active) return;
@@ -219,8 +210,8 @@ static void sn_fill(void)
             if (++envc == 32) { envc = 0; sn_env(); }
             half = 1;
         }
-        SN_DAC_M = lo;
-        SN_DAC_H = hi;
+        DAC_M = lo;
+        DAC_H = hi;
     }
 }
 
@@ -305,20 +296,20 @@ void snd_init(void)
     pa_tgt = v < 4 ? 4 : v > 22 ? 22 : v;
     m_amp = b_amp = s_amp = m_tgt = b_tgt = s_tgt = 0;
     mus_on = 0; fx_p = 0; fx_prio = 0; tune = 0; half = 0; active = 0; envc = 0;
-    SN_DACCTL = DAC_INIT | DAC_MUTE;                            /* 8 kHz, 12.288 MHz audio clock family */
-    SN_PLL = SN_PLL & ~PLL_AUDIO_MASK;
-    SN_DACRATE = DACRATE_8K;
-    SN_DACFIFO = DACFIFO_INIT;
-    SN_DAC_L = 0;
-    SN_DACCTL = DAC_INIT;
-    if (!(SN_PACTL & PA_EN)) {                                  /* first time: amplifier up, silent */
-        SN_PAVOL &= ~PAVOL_MASK;
-        SN_PACTL |= PA_DAC | PA_EN;
-        SN_PACTL |= PA_ON;
+    DACCTL = DAC_INIT | DAC_MUTE;                            /* 8 kHz, 12.288 MHz audio clock family */
+    PLLCTL = PLLCTL & ~PLL_AUDIO_MASK;
+    DACRATE = DACRATE_8K;
+    DACFIFO = DACFIFO_INIT;
+    DAC_L = 0;
+    DACCTL = DAC_INIT;
+    if (!(PACTL & PA_EN)) {                                  /* first time: amplifier up, silent */
+        PAVOL &= ~PAVOL_MASK;
+        PACTL |= PA_DAC | PA_EN;
+        PACTL |= PA_ON;
         sn_wait_ticks(20);
     }
-    SN_PACTL |= PA_DAC;
-    pa_cur = SN_PAVOL & PAVOL_MASK;
+    PACTL |= PA_DAC;
+    pa_cur = PAVOL & PAVOL_MASK;
     last_tick = hal_ticks();
     idle_t = SN_IDLE_TICKS + 1;
 }
