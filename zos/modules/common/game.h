@@ -1,4 +1,4 @@
-/* small helpers shared by the game modules (HOPBOT, KLONDIKE, SPIDER, MINES): include game.c from one
+/* small helpers shared by the game modules (HOPBOT, KLONDIKE, SPIDER, MINES, QUADFALL): include game.c from one
  * module source (next to skin.c / beep.c), this header from the others.
  *   run streamer  gm_win() opens an LCD window, gm_run() streams runs of one colour into it (runs of the
  *                 same colour are merged into one hal_lcd_fill), gm_bits() a row of a 1-bit glyph;
@@ -38,8 +38,11 @@ typedef struct {
     uint16_t mine_best[3];                        /* MINES best time (s) per size, 0 = none */
     uint16_t klon_best[2], klon_wins;             /* KLONDIKE best time (s) draw 1 / 3, games won */
     uint16_t spid_best[3], spid_wins;             /* SPIDER best time (s) 1 / 2 / 4 suits, games won */
+    uint16_t quad_best;                           /* QUADFALL best score */
+    uint8_t  quad_trk, quad_nofx;                 /* QUADFALL music track (0..2, 3 = off) / effects off */
 } gscore_t;
 #define GSCORE_ADDR (HAL_MODRAM_END - 32)         /* ZRAM1 scratch, its last 32 bytes */
+typedef char gscore_fits[sizeof(gscore_t) <= 32 ? 1 : -1];
 gscore_t *gm_scores(void);                        /* valid block (zeroed if it was not) */
 void      gm_scores_save(void);                   /* after changing it */
 #endif

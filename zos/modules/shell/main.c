@@ -63,7 +63,7 @@ static const char *const cat_icon[NCAT] = { "MUSIC", "FM", "REC", "GAMES", "TOOL
 static const struct { char name[9]; uint8_t cat; } known[] = {
     { "MUSIC", CAT_MUSIC }, { "FM", CAT_FM }, { "REC", CAT_REC }, { "USB", CAT_USB }, { "SETTINGS", CAT_SETTINGS },
     { "SNAKE", CAT_GAMES }, { "HOPBOT", CAT_GAMES }, { "KLONDIKE", CAT_GAMES },
-    { "SPIDER", CAT_GAMES }, { "MINES", CAT_GAMES }, { "SHELL", CAT_HIDDEN }, { "MP3PLAY", CAT_HIDDEN },
+    { "SPIDER", CAT_GAMES }, { "MINES", CAT_GAMES }, { "QUADFALL", CAT_GAMES }, { "SHELL", CAT_HIDDEN }, { "MP3PLAY", CAT_HIDDEN },
     { "DECPLAY", CAT_HIDDEN }, { "DECINFO", CAT_HIDDEN }, { "RECRUN", CAT_HIDDEN },
     { "USBDISK", CAT_HIDDEN }, { "USBCON", CAT_HIDDEN }, { "USBAUDIO", CAT_HIDDEN },   /* USB's */
     { "ATTONE", CAT_HIDDEN }, { "ATREC", CAT_HIDDEN } };   /* AUDIOTST's */

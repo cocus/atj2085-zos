@@ -95,6 +95,11 @@ class ATJ2085:
         self.dsp_lanes = {l: bytearray(0x4000) for l in (0, 1, 2, 4, 5, 6)}  # IPM L/M/H, IDM L/M/H
         self.dma_log = collections.deque(maxlen=200)
         self.dsp = dsp               # DSP model (emu.dsp.DspHLE) or None
+        self.dac = None              # optional MCU-fed DAC FIFO model (emu.dac.DacModel), see now()
+        self._slice_n = 0
+        self.lcd_writes = 0
+        self.watch = set()           # ports whose OUTs are logged with the exact time in watch_log (tests)
+        self.watch_log = []
         self.dsp_program = None
         # external memory window 0x8000..0xFFFF
         self.ext_lcd = False
@@ -632,6 +637,7 @@ class ATJ2085:
 
     def _ext_write(self, addr, v):
         if self.ext_lcd:
+            self.lcd_writes += 1                           # external-memory stores to the LCD (3 wait states each on the device)
             self.lcd.write(self.ports[0xf4] & 4, v)
         elif self.ext_nand is not None:
             self.nand.mem_write(self.ext_nand, v)
@@ -682,6 +688,8 @@ class ATJ2085:
             v = self.key_model.port_in(self, p)
         elif self.nand is not None and p == 0x28:
             v = self.nand.port_in(p)
+        elif p == 0x8b and self.dac is not None:
+            v = self.dac.port_in(p, self.ports[p])
         else:
             v = self.ports[p]
         self._plog('i', p, v)
@@ -701,6 +709,10 @@ class ATJ2085:
             self.ports[0x25] &= ~v & 0xff
             return
         self.ports[p] = v
+        if self.dac is not None and 0x89 <= p <= 0x8b:
+            self.dac.port_out(p, v)
+        if p in self.watch:                                # (exact time, port, value) of OUTs to the watched ports
+            self.watch_log.append((self.now(), p, v))
         if p == 0x43:
             if v & 0x10:                                   # clear the counter
                 self.rtc_cbase = -(self.rtc_cnt // self.rtc_slow_div)
@@ -721,6 +733,12 @@ class ATJ2085:
             self.i2c.pins_changed()
         if self.key_model and p in (0xee, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xfe, 0xff, 0xef, 0xc1):
             self.key_model.port_out(self, p, v)
+
+    def now(self):
+        """T-states elapsed, exact inside a run() slice (self.ticks is only updated per slice)"""
+        if not self._slice_n:
+            return self.ticks
+        return self.ticks + self._slice_n - self.m.ticks_to_stop
 
     def rtc_counter(self):
         return (self.rtc_cnt // self.rtc_slow_div + self.rtc_cbase) & 0xFFFFFF
@@ -761,13 +779,14 @@ class ATJ2085:
         while self.ticks < end and not self.stopped_reason:
             n = min(slice_ticks, end - self.ticks)
             m.ticks_to_stop = n
+            self._slice_n = n
             while True:
                 ev = m.run()
                 if ev & BP:
                     pc = m.pc
                     if pc in self.user_bps:
                         self.stopped_reason = 'breakpoint %04x' % pc
-                        self.ticks += n - m.ticks_to_stop
+                        self.ticks += n - m.ticks_to_stop; self._slice_n = 0
                         return self.stopped_reason
                     h = self.bp_handlers.get(pc)
                     handled = False
@@ -787,6 +806,7 @@ class ATJ2085:
                 if ev & TL or m.ticks_to_stop == 0:
                     break
             self.ticks += n - m.ticks_to_stop if m.ticks_to_stop else n
+            self._slice_n = 0
             self._tick_devices()
         return self.stopped_reason
 

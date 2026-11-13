@@ -1,0 +1,27 @@
+# ID | English | Spanish   (20 chars max)
+TITLE   | QUADFALL             | QUADFALL
+H_MOVE  | << >>    MOVE        | << >>    MOVER
+H_ROT   | PLAY     ROTATE      | PLAY     GIRAR
+H_SOFT  | VOL      SOFT DROP   | VOL      BAJAR
+H_HARD  | VOL HOLD HARD DROP   | VOL MANT CAER
+START   | PLAY:START MENU:EXIT | PLAY:JUGAR MENU:SALE
+AGAIN   | PLAY:AGAIN MENU:EXIT | PLAY:OTRA MENU:SALE
+NEXT    | NEXT                 | SIGUE
+SCORE   | SCORE                | PUNTOS
+LEVEL   | LEVEL                | NIVEL
+LINES   | LINES                | LINEAS
+BEST    | BEST                 | RECORD
+NEWBEST | NEW BEST!            | NUEVO RECORD!
+PAUSE   | PAUSED               | PAUSA
+HINT    | << >> MOVE  PLAY: OK | << >> MOVER PLAY: OK
+RESUME  | RESUME               | SEGUIR
+MUSIC   | MUSIC                | MUSICA
+FX      | EFFECTS              | EFECTOS
+QUIT    | QUIT                 | SALIR
+ON      | ON                   | SI
+OFF     | OFF                  | NO
+TRK_A   | KOROBEINIKI          | KOROBEINIKI
+TRK_B   | GREENSLEEVES         | GREENSLEEVES
+TRK_C   | ODE TO JOY           | ALEGRIA
+OVER    | GAME OVER            | FIN DEL JUEGO
+LVLUP   | LEVEL UP             | NIVEL +

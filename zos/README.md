@@ -79,6 +79,40 @@ without the `P_`: `P_PAVOL` -> `PAVOL`, `P_USB_STAT` -> `USB_STAT`, `P_DMA2_SA0`
   the stock page into the window for the duration of the call.
 * Hosted constraint: zos must not use 0x2C00-0x2C7F, which is FS_FAT16's cluster cache.
 
+### Sound engine (modules/common/snd.c)
+A non-blocking sound engine for page modules that must make sound while they run (QUADFALL: music + effects).
+The DAC has no DMA and no interrupt: at 8 kHz it takes one 16-bit word per channel from an 8-word FIFO
+(`DACFIFO_FULL`), so 4 stereo frames = **0.5 ms of audio** (12 288 T-states at the real 24.576 MHz) is all
+the buffer there is, and the CPU refills it. `snd_pump()` writes words while the FIFO is not full (at most 12
+per call), then does the 10 ms bookkeeping (tune sequencer, effects, amplifier volume) and fills again.
+* **Synthesis**: three phase-accumulator pulse voices summed to one mono sample (written to L and R as in
+  `beep.c`): melody (25 % pulse), bass (50 % square), one effect voice (50 %, mixed over the music, slides
+  and arpeggios from a table). The sample loop is hand-written asm (`sn_synth`, ~380 T-states per sample incl.
+  the call = 12 % of the CPU while a tune plays; SDCC's version took ~1000). Amplitudes slew every 4 ms
+  (16 ms ramps): notes start and stop without clicks; when everything is silent the output is exactly 0 and
+  nothing is written (the CPU can HALT).
+* **Time**: tempo and effects run on `hal_ticks()` (10 ms), sixteenth = `unit * 16 / (16 + level)`, so the
+  speed-up follows the game level and the tempo does not depend on how often the pump runs. Both voices share
+  one sixteenth clock (no drift when the tempo changes).
+* **Amplifier** (same sequence as `beep.c`): powered up once, silently; volume from `ZCFG->vol` (x 3/4: square
+  waves are loud), set when sound starts, ramped to 0 after 1.5 s of silence and by `snd_exit()` (1 step per
+  tick, like MP3PLAY's `mp3_off`). The amplifier stays on at volume 0 - the state `beep.c` and MP3PLAY expect.
+* **Rules for a module**: include `snd.c` from one source (next to `skin.c`), `snd.h` elsewhere; do not link
+  `beep.c` as well (define `beep()` as `snd_key()` if a shared helper such as `game.c` needs it; `snd_key()`
+  honours `ZF_BEEP`); `snd_init()` once, `snd_exit()` before `mod_main` returns (also on `EV_POWER`);
+  **call `snd_pump()` often**: the main loop polls (`snd_pump()` + `skin_get()`) and only `HALT`s while
+  `!snd_busy()`; every drawing piece is at most ~0.3 ms (a 5x5 cell is one window + 25-pixel blit = 2 600
+  T-states) with a pump between (QUADFALL: `cell()`, `fillp()`, `txt()`; `snd_wait()` for delays).
+  A late pump means a short dropout (the DAC repeats or plays zero), never garbage. Content: a tune is two
+  lists of `{note, sixteenths}` byte pairs, an effect `{amp, {note, ticks, slide}...}` (see `snd.h`);
+  `tools/gen_quadfall_tunes.py` writes `modules/quadfall/tunes.c` and `modules/common/sndtab.h` from note names.
+* **Verification** (emulator, `atj2085emu/emu/dac.py` = optional DAC FIFO model: 8 words, 1 word pair per
+  8 kHz period, `FULL` flag, underruns marked; `tools/emu_game.py` runs a scripted session, `tools/snd_analyze.py`
+  and `tools/snd_sfx_check.py` compare the captured samples with the score, `tools/quadfall_logic_test.py`
+  checks the game rules). The emulator does not count the LCD bus wait states (3 per store at 24.576 MHz):
+  the analysis adds them. Remaining dropouts: the once-a-minute `skin_time()` redraw (6 ms) and the full-screen
+  clears between screens (music is silent then).
+
 ### Takeover mode (now) vs bare metal
 Takeover (now): started by the homebrew launcher from the user disk, then zos needs **nothing** from
 the stock OS: own IRQ handler, timer, keys, LCD, NAND + FTL (`targets/atj2085/nand.s`, `blk.c`,

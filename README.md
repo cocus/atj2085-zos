@@ -41,7 +41,7 @@ zos, and the hardware research notes behind all of it.
 | Settings | language, contrast, backlight timeout, battery icon, key beep, date and time (SET CLOCK), stored in `ZOS.CFG` | device (clock: emulator) |
 | Clock | OS wall clock (HH:MM in the title bars, date + time in SYSINFO, `EV_TIME` each minute): started at boot from a DS3231 on the tuner's I2C bus, else the last time saved in `ZOS.CFG`, else the build date; kept by the 2 Hz tick, corrected from the MCU RTC counter after standby; SET CLOCK writes the DS3231 too, see [docs/clock.md](docs/clock.md) | emulator only (needs the new core in the firmware; the DS3231 is untested on the device) |
 | Power | standby like stock (long PLAY), wake by PLAY or USB | device + emulator |
-| Games | HOPBOT (an original endless runner), Klondike (draw 1/3), Spider (1/2/4 suits), Mines (3 board sizes), Snake | emulator + device |
+| Games | HOPBOT (an original endless runner), QUADFALL (an original falling-block puzzle with music and sound effects through the DAC: three public-domain tunes in our own arrangement that speed up with the level, see [Sound engine](zos/README.md#sound-engine-modulescommonsndc)), Klondike (draw 1/3), Spider (1/2/4 suits), Mines (3 board sizes), Snake | emulator + device (QUADFALL: emulator with a DAC FIFO model; sound untested on the device) |
 | Tools | system info, file browser, LCD speed/DMA tests, audio test, I2C scan, FTL test | device |
 | Boot screen | [`tools/brecpatch`](tools/brecpatch/README.md): black background + own 20x36 picture in the boot record, optional faster boot (`--fast`: OS start 4.3 s -> 1.8 s by skipping the per-file firmware sums on normal boots); FIRMWARE `BREC BACKUP` / `BREC UPDATE` / `BREC RESTORE` write it (block 1, verify, then block 0) | **emulator only** |
 | Boot | [`tools/fwpatch/zospatch.py`](tools/fwpatch/README.md): patches a stock `.fw` so it boots stock unless `ZOS.AP` is on the disk (see [Install](#install-on-a-device)) | emulator; device-untested |
@@ -80,6 +80,11 @@ zos, and the hardware research notes behind all of it.
 <img src="docs/images/klondike.png" width="160" alt="Klondike">
 <img src="docs/images/spider.png" width="160" alt="Spider">
 <img src="docs/images/mines.png" width="160" alt="Mines">
+<img src="docs/images/quadfall.png" width="160" alt="QUADFALL title">
+<img src="docs/images/quadfall_play.png" width="160" alt="QUADFALL in play">
+<img src="docs/images/quadfall_clear.png" width="160" alt="QUADFALL row clear flash">
+<img src="docs/images/quadfall_pause.png" width="160" alt="QUADFALL pause menu: music track, effects">
+<img src="docs/images/quadfall_over.png" width="160" alt="QUADFALL game over">
 </p>
 <p>
 <img src="docs/images/snake.png" width="160" alt="Snake">
