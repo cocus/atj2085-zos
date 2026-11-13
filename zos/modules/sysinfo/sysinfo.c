@@ -10,8 +10,6 @@
 #include "strings.h"
 #include "regs.h"
 
-SFR(SI_BATT, P_BATT);
-SFR(SI_USBST, P_USB_STAT);
 
 /* battery: raw ADC level (0.90 V + 0.04 V/step), USB power, and the debounced state the icon uses
  * (HAL_BATT: level, U = USB power; "-" = not sampled yet) - for tuning targets/<t>/board.h */
@@ -19,8 +17,8 @@ static void batt_line(void)
 {
     uint8_t s = HAL_BATT;
     gfx_fill(70, 82, 58, 20, C_BG);
-    gfx_num(70, 82, SI_BATT & BATT_LEVEL, 1, C_OK, C_BG);
-    gfx_text(88, 82, SI_USBST & USBST_VBUS ? "USB" : "BAT", 1, C_OK, C_BG);
+    gfx_num(70, 82, BATT & BATT_LEVEL, 1, C_OK, C_BG);
+    gfx_text(88, 82, USB_STAT & USBST_VBUS ? "USB" : "BAT", 1, C_OK, C_BG);
     if (s) {
         gfx_num(70, 92, s & HAL_BATT_LEVEL, 1, C_OK, C_BG);
         if (s & HAL_BATT_VBUS) gfx_text(88, 92, "USB", 1, C_OK, C_BG);

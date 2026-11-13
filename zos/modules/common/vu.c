@@ -14,14 +14,6 @@
 #include "vu.h"
 
 #ifndef VU_PX_ONLY                              /* (a module with its own capture: vu_px() only) */
-SFR(VU_ADCDATA, P_ADCDATA);
-SFR(VU_ADCBUS, P_ADCBUS);
-SFR(VU_ADCPD2, P_ADCPD2);
-SFR(VU_ADCTUNE, P_ADCTUNE);
-SFR(VU_ADCFIFO, P_ADCFIFO);
-SFR(VU_ADCPD9, P_ADCPD9);
-SFR(VU_AICTL, P_AICTL);
-SFR(VU_MIXER, P_MIXER);
 
 #define VU_KEEP_MIX   (MIX_SRC_MASK | MIX_RATE_MASK)
 #define VU_KEEP_AI    (AICTL_ADC | AICTL_DITHER)
@@ -31,33 +23,33 @@ static uint8_t vcnt, vlen;
 
 void vu_adc_on(uint8_t src)
 {
-    sv_mix = VU_MIXER; sv_ai = VU_AICTL; sv_pd2 = VU_ADCPD2; sv_pd9 = VU_ADCPD9;
-    VU_MIXER = (VU_MIXER & ~VU_KEEP_MIX) | src;     /* 8 kHz */
-    VU_ADCTUNE |= ADCTUNE_GAIN;
-    VU_ADCBUS = 0;                                  /* 16 bit */
-    VU_ADCPD2 |= ADCPD2_ON;                         /* OS ADC_Enable */
-    VU_ADCPD9 &= ~ADCPD9_MASK;
-    VU_AICTL |= VU_KEEP_AI;
-    VU_ADCFIFO = ADCFIFO_RONLY;                     /* FIFO reset, then run + sync, right only */
-    VU_ADCFIFO = ADCFIFO_SYNC | ADCFIFO_RONLY | ADCFIFO_RUN;
-    VU_ADCFIFO = ADCFIFO_RONLY | ADCFIFO_RUN;
+    sv_mix = MIXER; sv_ai = AICTL; sv_pd2 = ADCPD2; sv_pd9 = ADCPD9;
+    MIXER = (MIXER & ~VU_KEEP_MIX) | src;     /* 8 kHz */
+    ADCTUNE |= ADCTUNE_GAIN;
+    ADCBUS = 0;                                  /* 16 bit */
+    ADCPD2 |= ADCPD2_ON;                         /* OS ADC_Enable */
+    ADCPD9 &= ~ADCPD9_MASK;
+    AICTL |= VU_KEEP_AI;
+    ADCFIFO = ADCFIFO_RONLY;                     /* FIFO reset, then run + sync, right only */
+    ADCFIFO = ADCFIFO_SYNC | ADCFIFO_RONLY | ADCFIFO_RUN;
+    ADCFIFO = ADCFIFO_RONLY | ADCFIFO_RUN;
     vsum = vcnt = vlen = 0;
 }
 
 void vu_adc_off(void)
 {
-    VU_ADCFIFO = ADCFIFO_OFF;
-    VU_ADCPD2 = sv_pd2; VU_ADCPD9 = sv_pd9;
-    VU_AICTL = (VU_AICTL & ~VU_KEEP_AI) | (sv_ai & VU_KEEP_AI);
-    VU_MIXER = (VU_MIXER & ~VU_KEEP_MIX) | (sv_mix & VU_KEEP_MIX);
+    ADCFIFO = ADCFIFO_OFF;
+    ADCPD2 = sv_pd2; ADCPD9 = sv_pd9;
+    AICTL = (AICTL & ~VU_KEEP_AI) | (sv_ai & VU_KEEP_AI);
+    MIXER = (MIXER & ~VU_KEEP_MIX) | (sv_mix & VU_KEEP_MIX);
 }
 
 void vu_poll(void)
 {
     uint8_t n = 16, hi, lo;
     int16_t s;
-    while (n-- && (VU_ADCFIFO & ADCFIFO_NE)) {
-        hi = VU_ADCDATA; lo = VU_ADCDATA;
+    while (n-- && (ADCFIFO & ADCFIFO_NE)) {
+        hi = ADCDATA; lo = ADCDATA;
         s = (int16_t)(((uint16_t)hi << 8) | lo);
         if (vcnt < 63) { vsum += (uint16_t)(s < 0 ? -s : s) >> 5; vcnt++; }   /* fits 16 bits */
     }

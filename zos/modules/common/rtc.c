@@ -4,10 +4,6 @@
 #include "regs.h"
 #include "rtc.h"
 
-SFR(RC_CTL, P_RTCCTL);
-SFR(RC_T0, P_RTCT_LO);
-SFR(RC_T1, P_RTCT_MI);
-SFR(RC_T2, P_RTCT_HI);
 
 static const uint8_t mdays[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
@@ -45,8 +41,8 @@ uint8_t cal_dow(uint16_t day)                    /* 2000-01-01 was a Saturday */
 
 uint32_t clk_counter(void)
 {
-    RC_CTL |= RTCCTL_LATCH;
-    return ((uint32_t)RC_T2 << 16) | ((uint16_t)RC_T1 << 8) | RC_T0;
+    RTCCTL |= RTCCTL_LATCH;
+    return ((uint32_t)RTCT_HI << 16) | ((uint16_t)RTCT_MI << 8) | RTCT_LO;
 }
 
 static uint32_t to_secs(const clk_t *t)

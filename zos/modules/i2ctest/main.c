@@ -16,14 +16,8 @@
 #include "../common/skin.h"
 #include "../common/skcol.h"
 #include "../common/skinlite.c"
+#include "regs.h"
 
-#ifndef __SDCC                 /* editor / static analysis only */
-#define __sfr volatile unsigned char
-#define __at(x)
-#endif
-
-__sfr __at(0xF3) GPC_EN;        /* GPIO C: 0-2 output enable C0..C2, 4-6 input enable C0..C2 */
-__sfr __at(0xF4) GPC_DATA;      /* GPIO C: data bits C0..C2 (C2 = LCD A0) */
 
 #define SCL      0x01           /* in F4 and as output-enable in F3 */
 #define SDA      0x02
@@ -54,7 +48,7 @@ static void en_set(uint8_t set, uint8_t clr)
 }
 static void dat_set(uint8_t set, uint8_t clr)
 {
-    GPC_DATA = ((GPC_DATA & 0x07) | set) & ~clr & 0x07;
+    GPC_D = ((GPC_D & 0x07) | set) & ~clr & 0x07;
 }
 
 static void scl(uint8_t v) { if (v) dat_set(SCL, 0); else dat_set(0, SCL); }
@@ -64,13 +58,13 @@ static void sda(uint8_t v)                      /* drive SDA (OE on, IE off) */
     en_set(SDA, SDA_IE);
 }
 static void sda_release(void) { en_set(SDA_IE, SDA); }       /* hi-Z, input on */
-static uint8_t sda_read(void) { return (GPC_DATA & SDA) ? 1 : 0; }
+static uint8_t sda_read(void) { return (GPC_D & SDA) ? 1 : 0; }
 
 /* take the pins: both lines driven high (bus idle, like the stock I2C_init) */
 static void bus_open(void)
 {
     sv_en = GPC_EN & EN_MASK;
-    sv_dat = GPC_DATA & DAT_MASK;
+    sv_dat = GPC_D & DAT_MASK;
     dat_set(SCL | SDA, 0);
     en_set(SCL | SDA, SCL_IE | SDA_IE);
 }
@@ -78,8 +72,8 @@ static void bus_open(void)
 /* give the pins back as we found them (data first, then enables) */
 static void bus_close(void)
 {
-    uint8_t d = GPC_DATA & 0x07, e = GPC_EN & 0x77;
-    GPC_DATA = (d & ~DAT_MASK) | sv_dat;
+    uint8_t d = GPC_D & 0x07, e = GPC_EN & 0x77;
+    GPC_D = (d & ~DAT_MASK) | sv_dat;
     GPC_EN = (e & ~EN_MASK) | sv_en;
 }
 
@@ -90,11 +84,6 @@ static void bus_close(void)
  * register set: address byte from 71h sent on START, data via 7Ch, status 7Bh bit7 = buffer
  * flag (tx complete / rx full), 7Ah bit0 = last received bit (ACK = 0) on transmit and ACK
  * enable on receive. Unverified on the device: watch the ST/CT diagnostics. */
-__sfr __at(0xEE) MFP;           /* 7-5 pin mode (000 F1 GPIO, 001 F2), 4 CE0S, 3-0 GPO_A */
-__sfr __at(0x71) I2C_ADDR;      /* 7-1 slave address, 0 R/W (master) */
-__sfr __at(0x7A) I2C_CTL;       /* 7 EN, 6 400k, 5 IRQ en, 4 slave, 3-2 cond, 0 ACK */
-__sfr __at(0x7B) I2C_ST;        /* 7 BF, 6 P, 5 S, 4 R/W, 3 D/A, 2 IRQ, 1 WCOL, 0 OV */
-__sfr __at(0x7C) I2C_DAT;
 #define CTL_EN    0x80
 #define CTL_START 0x04
 #define CTL_STOP  0x08
@@ -175,7 +164,7 @@ static uint8_t hw_wr(uint8_t b)
         I2C_ADDR = b;
         hw_kick = b & 1;
     }
-    I2C_DAT = b;
+    I2C_DATA = b;
     if (!hw_wait(hw_kick ? 1 : 2)) return 0;
     return !(I2C_CTL & 0x01);                   /* ACK = 0 */
 }
@@ -188,9 +177,9 @@ static uint8_t hw_wr(uint8_t b)
 static uint8_t hw_rd(uint8_t nack)
 {
     I2C_CTL = CTL_EN | (nack ? 0 : 0x01);       /* ACK enable for this byte */
-    if (hw_kick) { hw_kick = 0; (void)I2C_DAT; }
+    if (hw_kick) { hw_kick = 0; (void)I2C_DATA; }
     if (!hw_wait(3)) return 0xFF;
-    return I2C_DAT;
+    return I2C_DATA;
 }
 
 /* returns 1 = ACK, 0 = NACK */
@@ -330,7 +319,7 @@ static uint8_t wait_s(uint8_t mask)
 {
     uint16_t n;
     for (n = 0; n < 3000; n++) {
-        if (!(GPC_DATA & SCL)) scl_low++;
+        if (!(GPC_D & SCL)) scl_low++;
         if (I2C_ST & mask) return 1;
     }
     return 0;
@@ -350,7 +339,7 @@ static void diag_case(uint8_t v, uint8_t a7)
         wait_s(0x20 | ST_BF);
         snap();
         I2C_ADDR = a7 << 1;
-        I2C_DAT = a7 << 1;
+        I2C_DATA = a7 << 1;
         wait_s(ST_BF);
         snap();
     }
@@ -417,7 +406,7 @@ static void scan_screen(void)
         /* idle levels with both lines released: floats/low = no pull-up or stuck bus */
         en_set(SCL_IE | SDA_IE, SCL | SDA);
         dly(); dly();
-        idle = GPC_DATA & DAT_MASK;
+        idle = GPC_D & DAT_MASK;
         en_set(SCL | SDA, SCL_IE | SDA_IE);
         gfx_text(4, 18, "GPIO SCL=", 1, C_DIM, C_BG);
         gfx_char(4 + 9 * 6, 18, (idle & SCL) ? '1' : '0', 1, C_FG, C_BG);

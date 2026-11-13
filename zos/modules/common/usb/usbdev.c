@@ -24,32 +24,6 @@
 #error "define USB_MSC_ONLY, USB_CDC_ONLY or USB_AUDIO_ONLY before including usbdev.c"
 #endif
 
-SFR(PLLCTL, P_PLLCTL);
-SFR(CLKCTL2, P_CLKCTL2);
-SFR(PULLUP, P_USB_PULLUP);
-SFR(USBST, P_USB_STAT);
-SFR(USBADDR, P_USB_ADDR);
-SFR(USBIRQ, P_USB_IRQ);
-SFR(EPIRQ, P_USB_EPIRQ);
-SFR(SETUPST, P_USB_SETUPST);
-SFR(SU0, P_USB_SETUP0);
-SFR(SU1, P_USB_SETUP1);
-SFR(SU2, P_USB_SETUP2);
-SFR(SU3, P_USB_SETUP3);
-SFR(SU4, P_USB_SETUP4);
-SFR(SU5, P_USB_SETUP5);
-SFR(SU6, P_USB_SETUP6);
-SFR(SU7, P_USB_SETUP7);
-SFR(EPI, P_USB_EPI);
-SFR(EPMODE, P_USB_EPMODE);
-SFR(SAH, P_USB_SAH);
-SFR(SAL, P_USB_SAL);
-SFR(CNTH, P_USB_CNTH);
-SFR(CNTL, P_USB_CNTL);
-SFR(MPS, P_USB_MPS);
-SFR(BR, P_USB_BR);
-SFR(NAKST, P_USB_NAKST);
-SFR(STALLST, P_USB_STALLST);
 
 jmp_buf usb_jb;
 uint8_t usb_fn, usb_state, usb_cfg, usb_dirty, usb_halt;
@@ -143,54 +117,54 @@ void usb_disk_size(void)
 #endif
 
 /* ---- endpoints ---------------------------------------------------------------------------- */
-/* stock order (sSet_Ep*_Mode b21:1fa6..1ff0, then 64h/65h): EPI, mode, MPS/toggle, start offset,
- * [ack the endpoint's done bit, bulk only], count high (clears BR), count low (arms, BR = 1) */
+/* stock order (sSet_Ep*_Mode b21:1fa6..1ff0, then 64h/65h): USB_EPI, mode, USB_MPS/toggle, start offset,
+ * [ack the endpoint's done bit, bulk only], count high (clears USB_BR), count low (arms, USB_BR = 1) */
 static void ep_cfg(uint8_t epi, uint8_t mode, uint8_t mps, uint16_t off)
 {
-    EPI = epi;
-    EPMODE = mode;
-    MPS = mps;
-    SAH = off >> 8;
-    SAL = (uint8_t)off;
-    if (epi >= EPI_EP1IN) EPIRQ = 1 << epi;
+    USB_EPI = epi;
+    USB_EPMODE = mode;
+    USB_MPS = mps;
+    USB_SAH = off >> 8;
+    USB_SAL = (uint8_t)off;
+    if (epi >= EPI_EP1IN) USB_EPIRQ = 1 << epi;
 }
 
-/* arm: after the 65h write the stock code first waits for BR = 1 (f_b21_1c49, b21:1ff3), so a
- * later "BR = 0" really means "this transfer finished". Bounded here: a transfer the host completes
+/* arm: after the 65h write the stock code first waits for USB_BR = 1 (f_b21_1c49, b21:1ff3), so a
+ * later "USB_BR = 0" really means "this transfer finished". Bounded here: a transfer the host completes
  * before the first poll (a few us) must not hang us. */
 void ep_arm(uint8_t epi, uint8_t mode, uint8_t mps, uint16_t off, uint16_t n)
 {
     uint8_t bit = 1 << epi, i = 255;
     ep_cfg(epi, mode, mps, off);
-    CNTH = n >> 8;
-    CNTL = (uint8_t)n;
-    while (!(BR & bit) && --i) ;
+    USB_CNTH = n >> 8;
+    USB_CNTL = (uint8_t)n;
+    while (!(USB_BR & bit) && --i) ;
 }
 
-/* mode / toggle / offset only, BR cleared, not armed (sInitEp1Ep2 b21:1959: EP2 IN "64 = 0") */
+/* mode / toggle / offset only, USB_BR cleared, not armed (sInitEp1Ep2 b21:1959: EP2 IN "64 = 0") */
 static void ep_idle(uint8_t epi, uint8_t mps, uint16_t off)
 {
     ep_cfg(epi, EPMODE_NORMAL, mps, off);
-    CNTH = 0;
+    USB_CNTH = 0;
 }
 
-/* clear BR (USB_Reset_ISR b21:165a: "60 = n; 64 = 0") */
+/* clear USB_BR (USB_Reset_ISR b21:165a: "60 = n; 64 = 0") */
 void ep_disarm(uint8_t epi)
 {
-    EPI = epi;
-    CNTH = 0;
+    USB_EPI = epi;
+    USB_CNTH = 0;
 }
 
 void usb_check(void)
 {
     hal_watchdog();
-    if (!(USBST & USBST_VBUS)) longjmp(usb_jb, AB_UNPLUG);
-    if (USBIRQ & USBIRQ_RESET) longjmp(usb_jb, AB_RESET);
+    if (!(USB_STAT & USBST_VBUS)) longjmp(usb_jb, AB_UNPLUG);
+    if (USB_IRQ & USBIRQ_RESET) longjmp(usb_jb, AB_RESET);
 }
 
 static void ep0_setup(void);
 
-/* wait for the transfer armed (ep_arm) on `brbit` to finish: BR = 0 (b21:2007 / 1c5e).
+/* wait for the transfer armed (ep_arm) on `brbit` to finish: USB_BR = 0 (b21:2007 / 1c5e).
  * timeout in ticks (0 = none) -> returns 0; W_EP0: returns 0 when a new SETUP arrives (the host
  * abandoned this control transfer); W_SVC: SETUPs are served meanwhile. MENU stops the module. */
 uint8_t ep_wait(uint8_t brbit, uint8_t flags, uint16_t timeout)
@@ -199,9 +173,9 @@ uint8_t ep_wait(uint8_t brbit, uint8_t flags, uint16_t timeout)
     event_t e;
     for (;;) {
         usb_check();
-        if (!(BR & brbit)) return 1;
-        if ((flags & W_EP0) && (USBIRQ & USBIRQ_SETUP)) return 0;
-        if ((flags & W_SVC) && (USBIRQ & USBIRQ_SETUP)) ep0_setup();
+        if (!(USB_BR & brbit)) return 1;
+        if ((flags & W_EP0) && (USB_IRQ & USBIRQ_SETUP)) return 0;
+        if ((flags & W_SVC) && (USB_IRQ & USBIRQ_SETUP)) ep0_setup();
         if (ev_get(&e) && e.type == EV_KEY_DOWN && e.code == KEY_MENU)
             longjmp(usb_jb, AB_STOP);       /* other keys are dropped while a transfer waits */
         if (timeout && (uint16_t)(hal_ticks() - t0) >= timeout) return 0;
@@ -213,13 +187,13 @@ static void bus_reset(void)                 /* USB_Reset_ISR b21:1637 */
 {
     uint8_t i;
     usb_cfg = 0; addr = 0; usb_halt = 0;
-    USBADDR = USB_ADDR_EN;                  /* address 0, enabled */
-    do {                                    /* clear BR of every endpoint until all are idle */
+    USB_ADDR = USB_ADDR_EN;                  /* address 0, enabled */
+    do {                                    /* clear USB_BR of every endpoint until all are idle */
         for (i = EPI_CR; i <= EPI_EP3OUT; i++) ep_disarm(i);
         hal_watchdog();
-        if (!(USBST & USBST_VBUS)) longjmp(usb_jb, AB_UNPLUG);
-    } while (BR);
-    USBIRQ = USBIRQ_ALL; EPIRQ = 0xFF; NAKST = 0xFF; STALLST = 0xFF;
+        if (!(USB_STAT & USBST_VBUS)) longjmp(usb_jb, AB_UNPLUG);
+    } while (USB_BR);
+    USB_IRQ = USBIRQ_ALL; USB_EPIRQ = 0xFF; USB_NAKST = 0xFF; USB_STALLST = 0xFF;
     CLKCTL2 &= ~CLK2_BANKS;                 /* both ZRAM2 banks to the USB SIE */
     usb_state = US_DEFAULT;
     usb_nreset++;
@@ -231,9 +205,9 @@ static void bus_reset(void)                 /* USB_Reset_ISR b21:1637 */
 static void detach(void)                    /* UDiskExit text:0ee6 (without the clock off) */
 {
     uint8_t i;
-    PULLUP &= ~USB_PULLUP_EN;
+    USB_PULLUP &= ~USB_PULLUP_EN;
     for (i = EPI_CR; i <= EPI_EP3OUT; i++) ep_disarm(i);
-    USBIRQ = USBIRQ_ALL; EPIRQ = 0xFF;
+    USB_IRQ = USBIRQ_ALL; USB_EPIRQ = 0xFF;
     CLKCTL2 |= CLK2_BANKS;                  /* ZRAM2 back to the MCU */
     usb_cfg = 0;
     FN_RESET();
@@ -244,17 +218,17 @@ static void detach(void)                    /* UDiskExit text:0ee6 (without the 
  * pull-up off (stock guard; inferred: charger / no host). Then ack everything, pull-up on. */
 static void attach(void)
 {
-    uint8_t st = USBST;
+    uint8_t st = USB_STAT;
     usb_dirty = 1;
     if (!(st & USBST_VBUS)) { usb_state = US_NOVBUS; return; }
-    if ((st & (USBST_DP | USBST_DM)) == (USBST_DP | USBST_DM) && !(PULLUP & USB_PULLUP_EN)) {
+    if ((st & (USBST_DP | USBST_DM)) == (USBST_DP | USBST_DM) && !(USB_PULLUP & USB_PULLUP_EN)) {
         usb_state = US_CHARGER;
         return;
     }
     CLKCTL2 &= ~CLK2_BANKS;
-    USBADDR = USB_ADDR_EN;
-    USBIRQ = USBIRQ_ALL; EPIRQ = 0xFF;
-    PULLUP |= USB_PULLUP_EN;                /* soft connect: the host sees us now */
+    USB_ADDR = USB_ADDR_EN;
+    USB_IRQ = USBIRQ_ALL; USB_EPIRQ = 0xFF;
+    USB_PULLUP |= USB_PULLUP_EN;                /* soft connect: the host sees us now */
     usb_state = US_ATTACHED;
 }
 
@@ -279,7 +253,7 @@ void usb_start(uint8_t fn)
         PLLCTL |= PLL_HOSCEN | PLL_PLL1EN | PLL_M48EN;
         wait_ticks(4);                      /* >= 30 ms PLL lock (clock.h) */
     }
-    PULLUP &= ~USB_PULLUP_EN;
+    USB_PULLUP &= ~USB_PULLUP_EN;
     usb_cfg = 0;
     usb_state = US_NOVBUS;
     attach();
@@ -317,7 +291,7 @@ static uint8_t ep0_ack(void)
 {
     ep_arm(EPI_CW, EPMODE_CWDONE, MPS_EP0_DATA1, ZO_EP0, 0);
     if (!ep_wait(EPB_CW, W_EP0, 0)) { ep_disarm(EPI_CW); return 0; }
-    EPIRQ = EPB_CW;
+    USB_EPIRQ = EPB_CW;
     return 1;
 }
 
@@ -325,7 +299,7 @@ static uint8_t ep0_send(uint8_t mode, uint8_t mps, uint8_t n)   /* sWait_Ep0_Sen
 {
     ep_arm(EPI_CR, mode, mps, ZO_EP0, n);
     if (!ep_wait(EPB_CR, W_EP0, 0)) { ep_disarm(EPI_CR); return 0; }
-    EPIRQ = EPB_CR;
+    USB_EPIRQ = EPB_CR;
     return 1;
 }
 
@@ -338,9 +312,9 @@ static void ep0_in(uint8_t n)
     zr_put(ZO_EP0, ZR->ep0, n);
     if (n & 7) { ep0_send(EPMODE_CRLAST, MPS_EP0_DATA1, n); return; }
     if (!ep0_send(EPMODE_NORMAL, MPS_EP0_DATA1, n)) return;
-    if (!(SETUPST & SETUPST_LOCK)) return;
+    if (!(USB_SETUPST & SETUPST_LOCK)) return;
     if (!ep0_send(EPMODE_NORMAL, MPS_EP0, 0)) return;
-    if (SETUPST & SETUPST_LOCK) ep0_send(EPMODE_CRLAST, MPS_EP0, 0);
+    if (USB_SETUPST & SETUPST_LOCK) ep0_send(EPMODE_CRLAST, MPS_EP0, 0);
 }
 
 /* control write data stage into ZR->ep0 (CDC SET_LINE_CODING). INFERRED: the stock firmware never
@@ -351,7 +325,7 @@ uint8_t ep0_out(uint8_t n)
 {
     ep_arm(EPI_CW, EPMODE_CWDONE, MPS_EP0_DATA1, ZO_EP0, n);
     if (!ep_wait(EPB_CW, W_EP0, 50)) { ep_disarm(EPI_CW); usb_lcfail++; return 0; }
-    EPIRQ = EPB_CW;
+    USB_EPIRQ = EPB_CW;
     zr_get(ZR->ep0, ZO_EP0, n);
     usb_lcok++;
     return 1;
@@ -385,7 +359,7 @@ static void clear_halt(uint8_t ep)
     uint8_t epi = ep == 0x01 ? EPI_EP1OUT : ep == 0x82 ? EPI_EP2IN : EPI_EP1IN;
     usb_halt &= ~halt_bit(ep);
     usb_log('H', ep, 0, 0, 0);
-    do { ep_disarm(epi); usb_check(); } while (BR & (1 << epi));
+    do { ep_disarm(epi); usb_check(); } while (USB_BR & (1 << epi));
     ep_idle(epi, epi == EPI_EP1IN ? MPS_INT8_DATA0 : MPS_BULK_DATA0, epi == EPI_EP1OUT ? ZO_RX : ZO_TX);
     if (epi == EPI_EP1OUT) {                /* stock re-arms the CBW buffer here */
 #ifndef USB_AUDIO_ONLY
@@ -419,7 +393,7 @@ static void std_request(void)
         if (rt != 0x00) break;
         addr = v & 0x7F;
         if (ep0_ack()) {
-            USBADDR = addr | USB_ADDR_EN;
+            USB_ADDR = addr | USB_ADDR_EN;
             usb_state = addr ? US_ADDRESS : US_DEFAULT;
             usb_dirty = 1;
         }
@@ -476,11 +450,11 @@ static void std_request(void)
 /* EP0_SETUP_ISR b21:16a4: ack, check the SETUP status, read the 8 bytes, dispatch */
 static void ep0_setup(void)
 {
-    USBIRQ = USBIRQ_SETUP;
+    USB_IRQ = USBIRQ_SETUP;
     usb_nsetup++;
-    if ((SETUPST & SETUPST_MASK) != SETUPST_OK) { usb_log('S', 0xFF, SETUPST, 0, 0); ep0_stall(); return; }
-    usb_su[0] = SU0; usb_su[1] = SU1; usb_su[2] = SU2; usb_su[3] = SU3;
-    usb_su[4] = SU4; usb_su[5] = SU5; usb_su[6] = SU6; usb_su[7] = SU7;
+    if ((USB_SETUPST & SETUPST_MASK) != SETUPST_OK) { usb_log('S', 0xFF, USB_SETUPST, 0, 0); ep0_stall(); return; }
+    usb_su[0] = USB_SETUP0; usb_su[1] = USB_SETUP1; usb_su[2] = USB_SETUP2; usb_su[3] = USB_SETUP3;
+    usb_su[4] = USB_SETUP4; usb_su[5] = USB_SETUP5; usb_su[6] = USB_SETUP6; usb_su[7] = USB_SETUP7;
     usb_log('S', usb_su[0], usb_su[1], usb_su[3], usb_su[6] | (usb_su[7] << 8));
     if ((usb_su[0] & 0x60) == 0x20) {       /* class request */
         if (FN_SETUP()) return;
@@ -497,14 +471,14 @@ void usb_service(void)
 {
     uint8_t irq;
     hal_watchdog();
-    if (!(USBST & USBST_VBUS)) {
+    if (!(USB_STAT & USBST_VBUS)) {
         if (usb_state >= US_ATTACHED) detach();
         if (usb_state != US_NOVBUS) { usb_state = US_NOVBUS; usb_dirty = 1; }
         return;
     }
     if (usb_state == US_NOVBUS || usb_state == US_CHARGER) { attach(); return; }
-    irq = USBIRQ;
+    irq = USB_IRQ;
     if (irq & USBIRQ_RESET) { bus_reset(); return; }
     if (irq & USBIRQ_SETUP) ep0_setup();
-    if (irq & (USBIRQ_CONN | USBIRQ_WAKE)) USBIRQ = irq & (USBIRQ_CONN | USBIRQ_WAKE);
+    if (irq & (USBIRQ_CONN | USBIRQ_WAKE)) USB_IRQ = irq & (USBIRQ_CONN | USBIRQ_WAKE);
 }

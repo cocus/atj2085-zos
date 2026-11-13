@@ -32,8 +32,6 @@
 #include "strings.h"
 #include "regs.h"
 
-SFR(GPC_D, P_GPC_D);
-SFR(WDT, P_WDT);
 
 /* ---- the wall clock at boot ---------------------------------------------------------------- */
 /* start time: the build; the ZOS.CFG anchor when it is newer; the DS3231 when it has a valid time.

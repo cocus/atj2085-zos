@@ -29,8 +29,6 @@
 static const char *const rate_s[NRATES] = { "16000 HZ", "22050 HZ", "32000 HZ" };
 static const uint16_t rate_hz[NRATES] = { 16000, 22050, 32000 };
 static uint8_t ri = RATE_22K;
-SFR(M_AICTL, P_AICTL);
-SFR(M_ADCMOD, P_ADCMOD);
 static void value(uint8_t y, const char *s, uint16_t c);
 #define GAIN_OK() (rh.gain <= REC_GAIN_MAX && rh.gain_chk == (uint8_t)~rh.gain)
 static void gain_show(void)
@@ -48,17 +46,17 @@ static void gain_show(void)
 static uint8_t sv_aic, sv_mod, mon;
 static void mon_on(void)
 {
-    sv_aic = M_AICTL; sv_mod = M_ADCMOD;
-    M_ADCMOD = ADCMOD_MIC;
+    sv_aic = AICTL; sv_mod = ADCMOD;
+    ADCMOD = ADCMOD_MIC;
     vu_adc_on(MIX_SRC_MIC);
-    M_AICTL = (M_AICTL & ~(AICTL_MIC | AICTL_FM | AICTL_LINE | AICTL_MICGAIN)) | AICTL_MIC | rh.gain;
+    AICTL = (AICTL & ~(AICTL_MIC | AICTL_FM | AICTL_LINE | AICTL_MICGAIN)) | AICTL_MIC | rh.gain;
     mon = 1;
 }
 static void mon_off(void)
 {
     if (!mon) return;
     vu_adc_off();
-    M_AICTL = sv_aic; M_ADCMOD = sv_mod;
+    AICTL = sv_aic; ADCMOD = sv_mod;
     mon = 0;
 }
 
@@ -202,7 +200,7 @@ uint16_t mod_main(void)
             else if (e.code == KEY_LEFT && rh.gain) rh.gain--;
             else continue;
             rh.gain_chk = (uint8_t)~rh.gain;
-            M_AICTL = (M_AICTL & ~AICTL_MICGAIN) | rh.gain;
+            AICTL = (AICTL & ~AICTL_MICGAIN) | rh.gain;
             gain_show();
             continue;
         }

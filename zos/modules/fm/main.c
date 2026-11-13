@@ -34,13 +34,6 @@
 void pump(void);
 void big_char(uint8_t x, uint8_t y, char c, uint8_t sc, uint16_t fg, uint16_t bg);   /* skinlib.c */
 
-SFR(PAVOL, P_PAVOL);
-SFR(ADCMOD, P_ADCMOD);
-SFR(AICTL, P_AICTL);
-SFR(MIXER, P_MIXER);
-SFR(AIGAIN, P_AIGAIN);
-SFR(PACTL, P_PACTL);
-SFR(DACCTL, P_DACCTL);
 
 #define FREQ_MIN      FM_FREQ_MIN   /* 100 kHz units */
 #define FREQ_MAX      FM_FREQ_MAX

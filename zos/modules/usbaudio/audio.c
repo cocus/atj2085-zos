@@ -10,18 +10,6 @@
 #include "../../core/module.h"
 #include "capture.h"
 
-SFR(GPC_EN, P_GPC_EN);
-SFR(GPC_D, P_GPC_D);
-SFR(PLLCTL, P_PLLCTL);
-SFR(DACCTL, P_DACCTL);
-SFR(DACRATE, P_DACRATE);
-SFR(DACFIFO, P_DACFIFO);
-SFR(DAC_L, P_DAC_L);
-SFR(DAC_M, P_DAC_M);
-SFR(DAC_H, P_DAC_H);
-SFR(PAVOL, P_PAVOL);
-SFR(PACTL, P_PACTL);
-SFR(CLKCTL2, P_CLKCTL2);
 
 #define TEA_ADDR         0x60
 #define TEA_STBY         0x40

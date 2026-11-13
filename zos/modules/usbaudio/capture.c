@@ -10,21 +10,6 @@
 #include "../common/usb/usb.h"
 #include "capture.h"
 
-SFR(CAP_ADCDATA, P_ADCDATA);
-SFR(CAP_ADCBUS, P_ADCBUS);
-SFR(CAP_ADCMOD, P_ADCMOD);
-SFR(CAP_AICTL, P_AICTL);
-SFR(CAP_MIXER, P_MIXER);
-SFR(CAP_ADCPD2, P_ADCPD2);
-SFR(CAP_ADCTUNE, P_ADCTUNE);
-SFR(CAP_ADCFIFO, P_ADCFIFO);
-SFR(CAP_ADCPD9, P_ADCPD9);
-SFR(CAP_AIGAIN, P_AIGAIN);
-SFR(CAP_PLLCTL, P_PLLCTL);
-SFR(CAP_EPI, P_USB_EPI);
-SFR(CAP_EPMODE, P_USB_EPMODE);
-SFR(CAP_EPIRQ, P_USB_EPIRQ);
-SFR(CAP_BR, P_USB_BR);
 
 #define CAP_RING      512                /* bytes */
 #define CAP_MIC_GAIN  5                  /* AICTL_MICGAIN field for the microphone */
@@ -43,22 +28,22 @@ static __at(HAL_MODRAM_BASE) zr_t czr;    /* = *ZR (SDCC: no constant-pointer ar
 void cap_adc_on(uint8_t fm)
 {
     if (cap_adc) return;
-    sv_adcbus = CAP_ADCBUS; sv_adcm = CAP_ADCMOD; sv_aictl = CAP_AICTL; sv_mixer = CAP_MIXER;
-    sv_pd2 = CAP_ADCPD2; sv_adctune = CAP_ADCTUNE; sv_adcfifo = CAP_ADCFIFO; sv_pd9 = CAP_ADCPD9;
-    sv_aigain = CAP_AIGAIN; sv_pllcap = CAP_PLLCTL;
-    CAP_PLLCTL &= ~PLL_AUDIO_MASK;            /* 48 kHz family: else "32 kHz" is 29.4 kHz after a 44.1k MP3 */
-    CAP_ADCMOD = fm ? ADCMOD_LINEFM : ADCMOD_MIC;
-    CAP_MIXER = (CAP_MIXER & ~(MIX_SRC_MASK | MIX_RATE_MASK)) | (fm ? MIX_SRC_FM : MIX_SRC_MIC) | MIX_RATE_32;
-    CAP_ADCTUNE = (CAP_ADCTUNE & ~ADCTUNE_GAIN) | ADCTUNE_GAIN;
-    CAP_ADCBUS = 0;
-    CAP_ADCPD2 |= ADCPD2_ON;
-    CAP_ADCPD9 &= ~ADCPD9_MASK;
-    CAP_AICTL = (CAP_AICTL & ~(AICTL_MIC | AICTL_FM | AICTL_LINE | AICTL_MICGAIN)) |
+    sv_adcbus = ADCBUS; sv_adcm = ADCMOD; sv_aictl = AICTL; sv_mixer = MIXER;
+    sv_pd2 = ADCPD2; sv_adctune = ADCTUNE; sv_adcfifo = ADCFIFO; sv_pd9 = ADCPD9;
+    sv_aigain = AIGAIN; sv_pllcap = PLLCTL;
+    PLLCTL &= ~PLL_AUDIO_MASK;            /* 48 kHz family: else "32 kHz" is 29.4 kHz after a 44.1k MP3 */
+    ADCMOD = fm ? ADCMOD_LINEFM : ADCMOD_MIC;
+    MIXER = (MIXER & ~(MIX_SRC_MASK | MIX_RATE_MASK)) | (fm ? MIX_SRC_FM : MIX_SRC_MIC) | MIX_RATE_32;
+    ADCTUNE = (ADCTUNE & ~ADCTUNE_GAIN) | ADCTUNE_GAIN;
+    ADCBUS = 0;
+    ADCPD2 |= ADCPD2_ON;
+    ADCPD9 &= ~ADCPD9_MASK;
+    AICTL = (AICTL & ~(AICTL_MIC | AICTL_FM | AICTL_LINE | AICTL_MICGAIN)) |
                 AICTL_ADC | AICTL_DITHER | (fm ? AICTL_FM : AICTL_MIC | CAP_MIC_GAIN);
-    if (fm) CAP_AIGAIN = (CAP_AIGAIN & ~AIGAIN_FM_MASK) | AIGAIN_FM_0DB;
-    CAP_ADCFIFO = ADCFIFO_RONLY;              /* FIFO reset, then run + sync, right only */
-    CAP_ADCFIFO = ADCFIFO_SYNC | ADCFIFO_RONLY | ADCFIFO_RUN;
-    CAP_ADCFIFO = ADCFIFO_RONLY | ADCFIFO_RUN;
+    if (fm) AIGAIN = (AIGAIN & ~AIGAIN_FM_MASK) | AIGAIN_FM_0DB;
+    ADCFIFO = ADCFIFO_RONLY;              /* FIFO reset, then run + sync, right only */
+    ADCFIFO = ADCFIFO_SYNC | ADCFIFO_RONLY | ADCFIFO_RUN;
+    ADCFIFO = ADCFIFO_RONLY | ADCFIFO_RUN;
     cap_wr = cap_rd = 0;
     lvl_sum = lvl_cnt = 0;
     cap_adc = 1;
@@ -67,17 +52,17 @@ void cap_adc_on(uint8_t fm)
 void cap_adc_off(void)
 {
     if (!cap_adc) return;
-    CAP_ADCFIFO = ADCFIFO_OFF;
-    CAP_ADCPD2 = sv_pd2;
-    CAP_ADCPD9 = sv_pd9;
-    CAP_AICTL = sv_aictl;
-    CAP_MIXER = sv_mixer;
-    CAP_ADCTUNE = sv_adctune;
-    CAP_ADCBUS = sv_adcbus;
-    CAP_ADCMOD = sv_adcm;
-    CAP_AIGAIN = sv_aigain;
-    CAP_ADCFIFO = sv_adcfifo & CAP_FIFO_KEEP;
-    CAP_PLLCTL = (CAP_PLLCTL & ~PLL_AUDIO_MASK) | (sv_pllcap & PLL_AUDIO_MASK);
+    ADCFIFO = ADCFIFO_OFF;
+    ADCPD2 = sv_pd2;
+    ADCPD9 = sv_pd9;
+    AICTL = sv_aictl;
+    MIXER = sv_mixer;
+    ADCTUNE = sv_adctune;
+    ADCBUS = sv_adcbus;
+    ADCMOD = sv_adcm;
+    AIGAIN = sv_aigain;
+    ADCFIFO = sv_adcfifo & CAP_FIFO_KEEP;
+    PLLCTL = (PLLCTL & ~PLL_AUDIO_MASK) | (sv_pllcap & PLL_AUDIO_MASK);
     cap_adc = 0;
 }
 
@@ -86,11 +71,11 @@ void cap_stream(uint8_t on)
     cap_pending = 0;
     cap_wr = cap_rd = 0;
     if (on) {
-        CAP_EPI = EPI_EP2IN;                  /* ISO from now on: zero-length packets until the */
-        CAP_EPMODE = EPMODE_ISO | EPMODE_ISONBR;   /*   first 32 samples are ready */
+        USB_EPI = EPI_EP2IN;                  /* ISO from now on: zero-length packets until the */
+        USB_EPMODE = EPMODE_ISO | EPMODE_ISONBR;   /*   first 32 samples are ready */
     } else if (cap_streaming) {
         ep_disarm(EPI_EP2IN);
-        CAP_EPIRQ = EPB_EP2IN;
+        USB_EPIRQ = EPB_EP2IN;
     }
     cap_streaming = on;
 }
@@ -100,9 +85,9 @@ static void capture_samples(void)
 {
     uint8_t hi, lo;
     int16_t v;
-    while (CAP_ADCFIFO & ADCFIFO_NE) {
-        hi = CAP_ADCDATA;
-        lo = CAP_ADCDATA;
+    while (ADCFIFO & ADCFIFO_NE) {
+        hi = ADCDATA;
+        lo = ADCDATA;
         if (lvl_cnt < 63) {
             v = (int16_t)(((uint16_t)hi << 8) | lo);
             lvl_sum += (uint16_t)(v < 0 ? -v : v) >> 5;
@@ -129,8 +114,8 @@ void cap_poll(void)
     capture_samples();
     if (!cap_streaming) return;
     if (cap_pending) {
-        if (CAP_BR & EPB_EP2IN) return;       /* the last packet is still armed */
-        CAP_EPIRQ = EPB_EP2IN;
+        if (USB_BR & EPB_EP2IN) return;       /* the last packet is still armed */
+        USB_EPIRQ = EPB_EP2IN;
         cap_pending = 0;
     }
     used = (cap_wr - cap_rd) & (CAP_RING - 1);

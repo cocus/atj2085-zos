@@ -10,9 +10,6 @@
 #include "../../hal/hal.h"
 #include "regs.h"
 
-SFR(CLKCTL, P_CLKCTL);
-SFR(CLKCTL2, P_CLKCTL2);
-SFR(CLK_PLL, P_PLLCTL);
 
 static uint8_t clk_s00, clk_s70, clk_fast;
 
@@ -27,8 +24,8 @@ static void cpu_fast(void)
     if (clk_fast) return;
     clk_s00 = CLKCTL;
     clk_s70 = CLKCTL2;
-    if ((CLK_PLL & (PLL_HOSCEN | PLL_PLL1EN | PLL_M48EN)) != (PLL_HOSCEN | PLL_PLL1EN | PLL_M48EN)) {
-        CLK_PLL |= PLL_HOSCEN | PLL_PLL1EN | PLL_M48EN;   /* = the stock USB enable */
+    if ((PLLCTL & (PLL_HOSCEN | PLL_PLL1EN | PLL_M48EN)) != (PLL_HOSCEN | PLL_PLL1EN | PLL_M48EN)) {
+        PLLCTL |= PLL_HOSCEN | PLL_PLL1EN | PLL_M48EN;   /* = the stock USB enable */
         clk_wait_ticks(4);                             /* >= 30 ms PLL lock (only when it was off) */
     }
     CLKCTL = (clk_s00 & CLK_WS_MASK) | CLK_SRC;        /* 48 MHz source, divider /1, wait states kept */

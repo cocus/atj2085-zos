@@ -16,40 +16,41 @@
 #include "../common/skin.h"
 #include "../common/skcol.h"
 #include "../common/skinlite.c"
+#include "regs.h"
 
-#ifndef __SDCC                 /* editor / static analysis only */
-#define __sfr volatile unsigned char
-#define __at(x)
-#endif
-
-__sfr __at(0x00) P_CLK;        /* 7-6 ext wait states, 4 clock source, 3-0 divider */
 #ifdef PERF_DMA2                /* DMA2 = ports 0x14-0x21 (same layout; recommended for the LCD) */
-#define DB 0x14
 #define DEND 0x20
+#define D_SA0 DMA2_SA0
+#define D_SA1 DMA2_SA1
+#define D_SA2 DMA2_SA2
+#define D_SA3 DMA2_SA3
+#define D_ISA DMA2_ISA
+#define D_DA0 DMA2_DA0
+#define D_DA1 DMA2_DA1
+#define D_DA2 DMA2_DA2
+#define D_DA3 DMA2_DA3
+#define D_IDA DMA2_IDA
+#define D_BCL DMA2_BCL
+#define D_BCH DMA2_BCH
+#define D_MODE DMA2_MODE
+#define D_CMD DMA2_CMD
 #else                          /* DMA1 = ports 0x06-0x13 */
-#define DB 0x06
 #define DEND 0x08
+#define D_SA0 DMA1_SA0
+#define D_SA1 DMA1_SA1
+#define D_SA2 DMA1_SA2
+#define D_SA3 DMA1_SA3
+#define D_ISA DMA1_ISA
+#define D_DA0 DMA1_DA0
+#define D_DA1 DMA1_DA1
+#define D_DA2 DMA1_DA2
+#define D_DA3 DMA1_DA3
+#define D_IDA DMA1_IDA
+#define D_BCL DMA1_BCL
+#define D_BCH DMA1_BCH
+#define D_MODE DMA1_MODE
+#define D_CMD DMA1_CMD
 #endif
-__sfr __at(DB + 0) P_SA0;
-__sfr __at(DB + 1) P_SA1;
-__sfr __at(DB + 2) P_SA2;
-__sfr __at(DB + 3) P_SA3;        /* 7 ext, 6 IPM/IDM/ZRAM2 select, 4-0 SA[28:24] */
-__sfr __at(DB + 4) P_ISA;
-__sfr __at(DB + 5) P_DA0;
-__sfr __at(DB + 6) P_DA1;
-__sfr __at(DB + 7) P_DA2;
-__sfr __at(DB + 8) P_DA3;        /* same layout; CE3 = 011 in DA[28:26] -> 0x8C with bit 7 (external) */
-__sfr __at(DB + 9) P_IDA;
-__sfr __at(DB + 10) P_BC0;
-__sfr __at(DB + 11) P_BC1;
-__sfr __at(DB + 12) P_DMODE;      /* 7-6 wait states, 5 DSP mode, 4/3 down-count, 2 DSP boot, 1/0 IO */
-__sfr __at(DB + 13) P_DCMD;       /* 0 = start (self-clearing) */
-__sfr __at(0x25) P_DIRQ;       /* 3 = DMA1 end (W1C); NEVER write bit 0 (DMA reset pulse) */
-__sfr __at(0x2E) P_DSPCTL;     /* read only here */
-__sfr __at(0x42) P_PLL;        /* 7 HOSCEN, 6 PLL1EN, 5 M48EN, 4-2 DSP clock */
-__sfr __at(0x4E) P_WDT;        /* read only here */
-__sfr __at(0x4F) P_DCDC;       /* read only here */
-__sfr __at(0x70) P_MCUDMA;     /* 3 = MCU clock from PLL, 2-0 DMA clock divider */
 
 void spin(void);               /* spin.s */
 
@@ -117,25 +118,25 @@ static uint16_t measure(void)
  * returns MHz*100, or 0 if the starting state is not the expected one. Restores 00/42/70. */
 static uint16_t clock_test(uint8_t mode)
 {
-    uint8_t c00 = P_CLK, c42 = P_PLL, c70 = P_MCUDMA;
+    uint8_t c00 = CLKCTL, c42 = PLLCTL, c70 = CLKCTL2;
     uint16_t r;
     if ((c00 & 0x1F) != 0x10 || (c70 & 0x08)) return 0;   /* HOSC, /1, MCU not on the PLL */
     if (mode == 0) {
-        P_CLK = (c00 & 0xE0) | 0x11;                 /* HOSC, divider /2 */
+        CLKCTL = (c00 & 0xE0) | 0x11;                 /* HOSC, divider /2 */
         wait_ticks(2);
         r = measure();
-        P_CLK = c00;
+        CLKCTL = c00;
         wait_ticks(1);
         return r;
     }
-    P_PLL = c42 | 0xE0;                              /* HOSCEN + PLL1EN + M48EN (as the stock USB code) */
+    PLLCTL = c42 | 0xE0;                              /* HOSCEN + PLL1EN + M48EN (as the stock USB code) */
     wait_ticks(3);                                   /* PLL lock, 30 ms (stock waits ~70 us) */
-    P_CLK = (c00 & 0xE0) | 0x10;                     /* bit 4 = 48 MHz when 70.3 = 1; divider /1 */
-    P_MCUDMA = c70 | 0x08;                           /* MCU clock := PLL clock */
+    CLKCTL = (c00 & 0xE0) | 0x10;                     /* bit 4 = 48 MHz when 70.3 = 1; divider /1 */
+    CLKCTL2 = c70 | 0x08;                           /* MCU clock := PLL clock */
     r = measure();
-    P_MCUDMA = c70;                                  /* back to HOSC first ... */
-    P_CLK = c00;
-    P_PLL = c42;                                     /* ... then the PLL registers */
+    CLKCTL2 = c70;                                  /* back to HOSC first ... */
+    CLKCTL = c00;
+    PLLCTL = c42;                                     /* ... then the PLL registers */
     wait_ticks(1);
     return r;
 }
@@ -154,20 +155,20 @@ static uint16_t cpu_fill(void)
 
 static void dma_prog(uint8_t ws, uint16_t bc)
 {
-    P_SA0 = DMA_SRC & 0xFF; P_SA1 = DMA_SRC >> 8; P_SA2 = 0; P_SA3 = 0x00;   /* ZRAM1 */
-    P_ISA = 0x08;                                  /* stock convention for a ZRAM endpoint */
-    P_DA0 = 0; P_DA1 = 0; P_DA2 = 0; P_DA3 = 0x8C;                            /* external, CE3 */
-    P_IDA = 0;
-    P_BC0 = bc & 0xFF; P_BC1 = bc >> 8;
-    P_DMODE = (uint8_t)(ws << 6);
+    D_SA0 = DMA_SRC & 0xFF; D_SA1 = DMA_SRC >> 8; D_SA2 = 0; D_SA3 = 0x00;   /* ZRAM1 */
+    D_ISA = 0x08;                                  /* stock convention for a ZRAM endpoint */
+    D_DA0 = 0; D_DA1 = 0; D_DA2 = 0; D_DA3 = 0x8C;                            /* external, CE3 */
+    D_IDA = 0;
+    D_BCL = bc & 0xFF; D_BCH = bc >> 8;
+    D_MODE = (uint8_t)(ws << 6);
 }
 
 static uint8_t dma_go(void)
 {
     uint16_t to = 60000;
-    P_DCMD = 0x01;
-    while ((P_DCMD & 1) && --to) ;
-    if (!to) { P_DCMD = 0; return 0; }
+    D_CMD = 0x01;
+    while ((D_CMD & 1) && --to) ;
+    if (!to) { D_CMD = 0; return 0; }
     return 1;
 }
 
@@ -190,8 +191,8 @@ static uint8_t dma_fill(uint16_t col)
         hal_watchdog();
     }
     dma_us = (uint16_t)((uint32_t)(uint16_t)(hal_ticks() - t) * 10000UL / NFILL);
-    dma_flag = (P_DIRQ & DEND) != 0;
-    if (dma_flag) P_DIRQ = DEND;                      /* W1C the DMA1-end flag we caused */
+    dma_flag = (DMAIRQ & DEND) != 0;
+    if (dma_flag) DMAIRQ = DEND;                      /* W1C the DMA1-end flag we caused */
     for (k = 0; k < 256; k++) s[k] = keep[k];
     return ok;
 }
@@ -222,8 +223,8 @@ static void draw_all(void)
     gfx_fill(0, 0, LCD_W, LCD_H, C_BG);
     skin_title("PERF TEST");
     for (i = 0; i < NITEMS; i++) draw_item(i);
-    p = ln; p = put_s(p, "00:"); p = put_h(p, P_CLK); p = put_s(p, " 42:"); p = put_h(p, P_PLL);
-    p = put_s(p, " 70:"); p = put_h(p, P_MCUDMA); *p = 0;
+    p = ln; p = put_s(p, "00:"); p = put_h(p, CLKCTL); p = put_s(p, " 42:"); p = put_h(p, PLLCTL);
+    p = put_s(p, " 70:"); p = put_h(p, CLKCTL2); *p = 0;
     line(88, ln, C_DIM);
     p = ln; p = put_s(p, "CPU X.01MHZ "); p = put_u(p, mhz100); *p = 0;
     line(97, ln, C_OK);

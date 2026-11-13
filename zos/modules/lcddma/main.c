@@ -16,20 +16,6 @@
 #include "../common/clock.h"
 
 #include "regs.h"
-SFR(D2_SA0, P_DMA2_SA0);
-SFR(D2_SA1, P_DMA2_SA1);
-SFR(D2_SA2, P_DMA2_SA2);
-SFR(D2_SA3, P_DMA2_SA3);
-SFR(D2_ISA, P_DMA2_ISA);
-SFR(D2_DA0, P_DMA2_DA0);
-SFR(D2_DA1, P_DMA2_DA1);
-SFR(D2_DA2, P_DMA2_DA2);
-SFR(D2_DA3, P_DMA2_DA3);
-SFR(D2_IDA, P_DMA2_IDA);
-SFR(D2_BCL, P_DMA2_BCL);
-SFR(D2_BCH, P_DMA2_BCH);
-SFR(D2_MODE, P_DMA2_MODE);
-SFR(D2_CMD, P_DMA2_CMD);
 
 #define SRC ((uint8_t *)HAL_MODRAM_BASE)       /* 1 KB pattern (4 rows of bars) */
 #define REPS 16
@@ -56,20 +42,20 @@ static void make_pattern(void)
 
 static void dma_setup(uint16_t n, uint8_t mode)
 {
-    D2_SA0 = (uint8_t)(uint16_t)SRC; D2_SA1 = (uint16_t)SRC >> 8; D2_SA2 = 0; D2_SA3 = DMA_A3_ZRAM1;
-    D2_ISA = 0;
-    D2_DA0 = 0; D2_DA1 = 0; D2_DA2 = 0; D2_DA3 = DMA_A3_LCD;
-    D2_IDA = 0;
-    D2_BCL = (uint8_t)(n - 1); D2_BCH = (n - 1) >> 8;                                        /* n-1 */
-    D2_MODE = mode;
+    DMA2_SA0 = (uint8_t)(uint16_t)SRC; DMA2_SA1 = (uint16_t)SRC >> 8; DMA2_SA2 = 0; DMA2_SA3 = DMA_A3_ZRAM1;
+    DMA2_ISA = 0;
+    DMA2_DA0 = 0; DMA2_DA1 = 0; DMA2_DA2 = 0; DMA2_DA3 = DMA_A3_LCD;
+    DMA2_IDA = 0;
+    DMA2_BCL = (uint8_t)(n - 1); DMA2_BCH = (n - 1) >> 8;                                        /* n-1 */
+    DMA2_MODE = mode;
 }
 
 static uint8_t tmo;                            /* a DMA did not finish */
 static void dma_go(void)
 {
     uint16_t to = 2000;
-    D2_CMD = DMA_CMD_START;
-    while ((D2_CMD & DMA_CMD_START) && --to) ;             /* the CPU is halted during DMA anyway */
+    DMA2_CMD = DMA_CMD_START;
+    while ((DMA2_CMD & DMA_CMD_START) && --to) ;             /* the CPU is halted during DMA anyway */
     if (!to) tmo = 1;
 }
 

@@ -19,7 +19,6 @@
 #include "regs.h"
 #include "strings.h"
 
-SFR(USBST, P_USB_STAT);
 
 #define NFN 3                                    /* FN_MSC, FN_CDC (common/usb/usb.h), audio */
 #define FN_AUDIO 2
@@ -57,7 +56,7 @@ static void cpu_line(void) { line(CPU_Y, S_CPU, USH->fast ? "48 MHZ" : "24 MHZ",
 
 static void cable_line(void)
 {
-    vbus = (USBST & USBST_VBUS) != 0;
+    vbus = (USB_STAT & USBST_VBUS) != 0;
     line(CAB_Y, S_USB, T(vbus ? S_CABLE : S_NOCABLE), vbus ? sk.fg : sk.dim);
 }
 
@@ -114,14 +113,14 @@ uint16_t mod_main(void)
         gfx_fill(0, 0, LCD_W, SKIN_TITLE_H, sk.bg);
         skin_title(T(S_TITLE));
     }
-    if (autostart && (USBST & USBST_VBUS)) {     /* woken by a PC: mass storage */
+    if (autostart && (USB_STAT & USBST_VBUS)) {     /* woken by a PC: mass storage */
         USH->fn = 0;
         if ((r = go())) return r;
     }
     menu();
     for (;;) {
         if (!skin_wait(&e, 50)) {                  /* cable in / out */
-            if (((USBST & USBST_VBUS) != 0) != vbus) cable_line();
+            if (((USB_STAT & USBST_VBUS) != 0) != vbus) cable_line();
             continue;
         }
         if (e.type != EV_KEY_DOWN) continue;

@@ -7,16 +7,6 @@
 
 #include "regs.h"
 #include "board.h"
-SFR(CLKCTL, P_CLKCTL);
-SFR(EMHI, P_EMHI);
-SFR(PAGE, P_PAGE);
-SFR(WDT, P_WDT);
-SFR(GPB_OE, P_GPB_OE);
-SFR(GPB_IE, P_GPB_IE);
-SFR(GPB_D, P_GPB_D);
-SFR(MFP, P_MFP);
-SFR(BATT, P_BATT);
-SFR(USBST, P_USB_STAT);
 
 #define LCD (*(volatile uint8_t *)LCD_DATA)
 
@@ -140,7 +130,7 @@ static uint8_t bcand;
 
 static void batt_sample(void)
 {
-    uint8_t s = (BATT & BATT_LEVEL) | (USBST & USBST_VBUS ? HAL_BATT_VBUS : 0), old = HAL_BATT, d, n;
+    uint8_t s = (BATT & BATT_LEVEL) | (USB_STAT & USBST_VBUS ? HAL_BATT_VBUS : 0), old = HAL_BATT, d, n;
     if (s == (old & 0x1F) && (old & HAL_BATT_VALID)) { bcand = 0; return; }
     if ((bcand & 0x1F) != s) bcand = s;                      /* new candidate, seen once */
     else if (bcand < 0xE0) bcand += 0x20;

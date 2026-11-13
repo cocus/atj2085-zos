@@ -16,9 +16,6 @@
 #include "../common/usb/usb.h"
 #include "../common/ftlw.h"
 
-SFR(CLKCTL2, P_CLKCTL2);
-SFR(EPIRQ, P_USB_EPIRQ);
-SFR(BR, P_USB_BR);
 
 /* msc_wr (writes, default on: user request; console "wr off" / 48 MHz turn them off) and msc_rdmode
  * (1 = stock ping-pong: Windows mounts (device); 0 = flat: Windows looped on LBA 0) live in the USB
@@ -82,7 +79,7 @@ static void send_in(uint16_t n)
 {
     ep_arm(EPI_EP2IN, EPMODE_NORMAL, MPS_BULK, ZO_TX, n);
     ep_wait(EPB_EP2IN, 0, 0);
-    EPIRQ = EPB_EP2IN;
+    USB_EPIRQ = EPB_EP2IN;
 }
 
 /* data-in phase: `valid` bytes from ZR->tx, then zeros, `len` bytes in total */
@@ -109,7 +106,7 @@ static uint8_t write10(uint32_t lba, uint16_t cnt)
         n = cnt > 4 ? 4 : (uint8_t)cnt;
         ep_arm(EPI_EP1OUT, EPMODE_NORMAL, MPS_BULK, ZO_RX, (uint16_t)n * 512);
         ep_wait(EPB_EP1OUT, 0, 0);
-        EPIRQ = EPB_EP1OUT;
+        USB_EPIRQ = EPB_EP1OUT;
         for (i = 0; i < n; i++) {
             zr_get(ZR->sec, ZO_RX + i * 512, 512);
             if (ok && ftlw_write(lba, ZR->sec)) ok = 0;
@@ -131,7 +128,7 @@ static void data_out(uint32_t len)
         k = len > ZO_MAX ? ZO_MAX : (uint16_t)len;
         ep_arm(EPI_EP1OUT, EPMODE_NORMAL, MPS_BULK, ZO_RX, k);
         ep_wait(EPB_EP1OUT, 0, 0);
-        EPIRQ = EPB_EP1OUT;
+        USB_EPIRQ = EPB_EP1OUT;
         len -= k;
     }
 }
@@ -187,7 +184,7 @@ static uint8_t read10_pp(uint32_t lba, uint16_t cnt)
         msc_nsec += n;
     }
     if (!first) ep_wait(EPB_EP2IN, 0, 0);
-    EPIRQ = EPB_EP2IN;
+    USB_EPIRQ = EPB_EP2IN;
     CLKCTL2 &= ~CLK2_BANKS;                             /* both banks to USB again */
     return ok;
 }
@@ -320,8 +317,8 @@ void msc_poll(void)
     if (ftlw_pending() && (uint16_t)(hal_ticks() - twr) >= HAL_TICK_HZ) ftlw_flush();   /* idle */
     if (usb_state != US_CONFIGURED || usb_halt) return;
     if (!armed) { msc_configured(); return; }
-    if (!(EPIRQ & EPB_EP1OUT) && (BR & EPB_EP1OUT)) return;
-    EPIRQ = EPB_EP1OUT;
+    if (!(USB_EPIRQ & EPB_EP1OUT) && (USB_BR & EPB_EP1OUT)) return;
+    USB_EPIRQ = EPB_EP1OUT;
     armed = 0;
     zr_get(c, ZO_RX, 31);
     if (c[0] != 'U' || c[1] != 'S' || c[2] != 'B' || c[3] != 'C') {

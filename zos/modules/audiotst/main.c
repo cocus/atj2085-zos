@@ -23,9 +23,9 @@
 
 static void regs_save(void)
 {
-    sv[0] = P_CLK;  sv[1] = DACCTL; sv[2] = DACSR;  sv[3] = FIFOST; sv[4] = VOLR;   sv[5] = ADCMOD;
-    sv[6] = PD2;    sv[7] = ADCTUNE; sv[8] = ADC1;  sv[9] = ADC2;   sv[10] = AING; sv[11] = ADCFIFO;
-    sv[12] = PD9;   sv[13] = ANA;   sv[14] = ADCBUS;
+    sv[0] = PLLCTL;  sv[1] = DACCTL; sv[2] = DACRATE;  sv[3] = DACFIFO; sv[4] = PAVOL;   sv[5] = ADCMOD;
+    sv[6] = ADCPD2;    sv[7] = ADCTUNE; sv[8] = AICTL;  sv[9] = MIXER;   sv[10] = AIGAIN; sv[11] = ADCFIFO;
+    sv[12] = ADCPD9;   sv[13] = PACTL;   sv[14] = ADCBUS;
 }
 
 static void title(uint8_t id)
@@ -44,9 +44,9 @@ static void regs_screen(void)
     txt(4, 106, T(S_ENTRY), C_DIM);
     skin_footer(T(S_FT_PORTS));
     do {
-        now[0] = P_CLK; now[1] = DACCTL; now[2] = DACSR; now[3] = FIFOST; now[4] = VOLR; now[5] = ADCMOD;
-        now[6] = PD2; now[7] = ADCTUNE; now[8] = ADC1; now[9] = ADC2; now[10] = AING; now[11] = ADCFIFO;
-        now[12] = PD9; now[13] = ANA; now[14] = ADCBUS;
+        now[0] = PLLCTL; now[1] = DACCTL; now[2] = DACRATE; now[3] = DACFIFO; now[4] = PAVOL; now[5] = ADCMOD;
+        now[6] = ADCPD2; now[7] = ADCTUNE; now[8] = AICTL; now[9] = MIXER; now[10] = AIGAIN; now[11] = ADCFIFO;
+        now[12] = ADCPD9; now[13] = PACTL; now[14] = ADCBUS;
         for (i = 0; i < 15; i++) {
             x = i < 8 ? 4 : 66;
             y = 17 + (i & 7) * 11;

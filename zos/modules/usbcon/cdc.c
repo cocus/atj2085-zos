@@ -20,12 +20,6 @@
 #include "../../core/config.h"
 #include "board.h"
 
-SFR(EPIRQ, P_USB_EPIRQ);
-SFR(BR, P_USB_BR);
-SFR(EPI, P_USB_EPI);
-SFR(CNTH, P_USB_CNTH);
-SFR(CNTL, P_USB_CNTL);
-SFR(WDT, P_WDT);
 
 uint16_t cdc_nrx, cdc_ndrop;
 uint8_t cdc_dtr;
@@ -53,7 +47,7 @@ static void flush(void)
             cdc_ndrop++;
             return;
         }
-        EPIRQ = EPB_EP2IN;
+        USB_EPIRQ = EPB_EP2IN;
         if (txn < n) return;          /* a SETUP served meanwhile reset the console */
         txn -= n;
         memmove(ZR->tx, ZR->tx + n, txn);
@@ -391,11 +385,11 @@ void cdc_poll(void)
     if (usb_state != US_CONFIGURED) return;
     if (!armed) { cdc_configured(); return; }
     if (hello) { hello = 0; nl(); puts_("zos USB console - type help"); nl(); prompt(); flush(); }
-    if (!(EPIRQ & EPB_EP1OUT) && (BR & EPB_EP1OUT)) return;
-    EPIRQ = EPB_EP1OUT;
+    if (!(USB_EPIRQ & EPB_EP1OUT) && (USB_BR & EPB_EP1OUT)) return;
+    USB_EPIRQ = EPB_EP1OUT;
     armed = 0;
-    EPI = EPI_EP1OUT;
-    cdc_cbc = ((uint16_t)CNTH << 8) | CNTL;        /* diagnostic only (meaning not established) */
+    USB_EPI = EPI_EP1OUT;
+    cdc_cbc = ((uint16_t)USB_CNTH << 8) | USB_CNTL;        /* diagnostic only (meaning not established) */
     zr_get(r, ZO_RX, 64);
     cdc_nrx++;
     usb_dirty = 1;

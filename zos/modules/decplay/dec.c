@@ -12,16 +12,6 @@
 #define file mp3_file
 #define bs   dec_bs
 
-SFR(IRQST, P_IRQST);
-SFR(DSPCTL, P_DSPCTL);
-SFR(HDR0, P_HDR0);
-SFR(HDR3, P_HDR3);
-SFR(HDR4, P_HDR4);
-SFR(HDR5, P_HDR5);
-SFR(PLLCTL, P_PLLCTL);
-SFR(DACCTL, P_DACCTL);
-SFR(DACFIFO, P_DACFIFO);
-SFR(PAVOL, P_PAVOL);
 
 mp3_t mp3;
 fat_file_t mp3_file;

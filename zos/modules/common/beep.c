@@ -11,15 +11,6 @@
 #include "regs.h"
 #include "beep.h"
 
-SFR(BP_PLL, P_PLLCTL);
-SFR(BP_DACCTL, P_DACCTL);
-SFR(BP_DACRATE, P_DACRATE);
-SFR(BP_DACFIFO, P_DACFIFO);
-SFR(BP_DAC_L, P_DAC_L);
-SFR(BP_DAC_M, P_DAC_M);
-SFR(BP_DAC_H, P_DAC_H);
-SFR(BP_PAVOL, P_PAVOL);
-SFR(BP_PACTL, P_PACTL);
 
 #define BEEP_FRAMES  200                  /* 25 ms at 8 kHz */
 #define BEEP_HALF    2                    /* frames per half period: 8 kHz / 4 = 2 kHz */
@@ -37,32 +28,32 @@ void beep(void)
     uint16_t i;
     uint8_t v, hi;
     if (!ZCFG_BEEP) return;
-    BP_DACCTL = DAC_INIT | DAC_MUTE;              /* DAC: 8 kHz, 12.288 MHz family */
-    BP_PLL = BP_PLL & ~PLL_AUDIO_MASK;
-    BP_DACRATE = DACRATE_8K;
-    BP_DACFIFO = DACFIFO_INIT;
-    BP_DAC_L = 0;
-    BP_DACCTL = DAC_INIT;
-    if (!(BP_PACTL & PA_EN)) {                    /* first beep: amplifier up, silent */
-        BP_PAVOL &= ~PAVOL_MASK;
-        BP_PACTL |= PA_DAC | PA_EN;
-        BP_PACTL |= PA_ON;
+    DACCTL = DAC_INIT | DAC_MUTE;              /* DAC: 8 kHz, 12.288 MHz family */
+    PLLCTL = PLLCTL & ~PLL_AUDIO_MASK;
+    DACRATE = DACRATE_8K;
+    DACFIFO = DACFIFO_INIT;
+    DAC_L = 0;
+    DACCTL = DAC_INIT;
+    if (!(PACTL & PA_EN)) {                    /* first beep: amplifier up, silent */
+        PAVOL &= ~PAVOL_MASK;
+        PACTL |= PA_DAC | PA_EN;
+        PACTL |= PA_ON;
         bp_wait(20);
     }
-    BP_PACTL |= PA_DAC;
-    v = BP_PAVOL;
-    BP_PAVOL = (v & ~PAVOL_MASK) | BEEP_VOL;
+    PACTL |= PA_DAC;
+    v = PAVOL;
+    PAVOL = (v & ~PAVOL_MASK) | BEEP_VOL;
     for (i = 0; i < BEEP_FRAMES; i++) {
         hi = (i / BEEP_HALF) & 1 ? BEEP_AMP : (uint8_t)-BEEP_AMP;
-        while (BP_DACFIFO & DACFIFO_FULL) ;
-        BP_DAC_M = 0; BP_DAC_H = hi;              /* left */
-        while (BP_DACFIFO & DACFIFO_FULL) ;
-        BP_DAC_M = 0; BP_DAC_H = hi;              /* right */
+        while (DACFIFO & DACFIFO_FULL) ;
+        DAC_M = 0; DAC_H = hi;              /* left */
+        while (DACFIFO & DACFIFO_FULL) ;
+        DAC_M = 0; DAC_H = hi;              /* right */
     }
     for (i = 0; i < 8; i++) {                     /* end on silence */
-        while (BP_DACFIFO & DACFIFO_FULL) ;
-        BP_DAC_M = 0; BP_DAC_H = 0;
+        while (DACFIFO & DACFIFO_FULL) ;
+        DAC_M = 0; DAC_H = 0;
     }
     bp_wait(1);
-    BP_PAVOL = v & ~PAVOL_MASK;                   /* amplifier stays on, silent */
+    PAVOL = v & ~PAVOL_MASK;                   /* amplifier stays on, silent */
 }

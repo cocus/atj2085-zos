@@ -48,14 +48,12 @@ void spk_icon(uint8_t x, uint8_t y, uint8_t stereo, uint16_t fg, uint16_t bg)
 static const uint8_t batt_rects[] = { 0, 0, 17, 9, 0,  1, 1, 15, 7, 1,  17, 2, 2, 5, 0,  2, 2, 0, 5, 2,
     9, 1, 2, 1, 3,  8, 2, 2, 1, 3,  7, 3, 2, 1, 3,  5, 4, 7, 1, 3,  9, 5, 2, 1, 3,  8, 6, 2, 1, 3,
     7, 7, 2, 1, 3 };
-SFR(DRAW_BATT, P_BATT);
-SFR(DRAW_USBST, P_USB_STAT);
 uint8_t batt_drawn;                            /* level + VBUS of the icon on screen */
 uint8_t batt_state(void)                       /* the core's debounced state, else the ports */
 {
     uint8_t s = HAL_BATT;
     if (!(s & HAL_BATT_VALID))                 /* not sampled yet, or a core without EV_BATT */
-        s = (DRAW_BATT & BATT_LEVEL) | (DRAW_USBST & USBST_VBUS ? HAL_BATT_VBUS : 0);
+        s = (BATT & BATT_LEVEL) | (USB_STAT & USBST_VBUS ? HAL_BATT_VBUS : 0);
     return s & (HAL_BATT_LEVEL | HAL_BATT_VBUS);
 }
 void batt_icon(uint8_t x, uint8_t y, uint16_t fg, uint16_t bg)

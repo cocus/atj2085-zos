@@ -5,8 +5,6 @@
 #include "regs.h"
 #include "ds3231.h"
 
-SFR(DS_GPC_EN, P_GPC_EN);
-SFR(DS_GPC_D, P_GPC_D);
 
 #define DS_ADDR   0x68
 #define DS_OUT    (GPC_SCL | GPC_SDA)            /* output enables (bits 0-2) */
@@ -19,12 +17,12 @@ SFR(DS_GPC_D, P_GPC_D);
 static uint8_t sv_en, sv_d;
 
 static void dly(void) { volatile uint8_t i; for (i = 4; i; i--) ; }
-static void en_set(uint8_t set, uint8_t clr) { DS_GPC_EN = ((DS_GPC_EN & DS_EN_VALID) | set) & ~clr & DS_EN_VALID; }
-static void d_set(uint8_t set, uint8_t clr) { DS_GPC_D = ((DS_GPC_D & DS_D_VALID) | set) & ~clr & DS_D_VALID; }
+static void en_set(uint8_t set, uint8_t clr) { GPC_EN = ((GPC_EN & DS_EN_VALID) | set) & ~clr & DS_EN_VALID; }
+static void d_set(uint8_t set, uint8_t clr) { GPC_D = ((GPC_D & DS_D_VALID) | set) & ~clr & DS_D_VALID; }
 static void scl(uint8_t v) { if (v) d_set(GPC_SCL, 0); else d_set(0, GPC_SCL); }
 static void sda(uint8_t v) { if (v) d_set(GPC_SDA, 0); else d_set(0, GPC_SDA); en_set(GPC_SDA, GPC_SDA << 4); }
 static void sda_release(void) { en_set(GPC_SDA << 4, GPC_SDA); }
-static uint8_t sda_read(void) { return (DS_GPC_D & GPC_SDA) ? 1 : 0; }
+static uint8_t sda_read(void) { return (GPC_D & GPC_SDA) ? 1 : 0; }
 static void start(void) { sda(1); scl(1); dly(); sda(0); dly(); scl(0); dly(); }   /* also repeated START */
 static void stop(void) { scl(0); sda(0); dly(); scl(1); dly(); sda(1); dly(); }
 static uint8_t wr(uint8_t b)
@@ -47,15 +45,15 @@ static uint8_t rd(uint8_t nack)
 
 static void bus_open(void)
 {
-    sv_en = DS_GPC_EN; sv_d = DS_GPC_D;
+    sv_en = GPC_EN; sv_d = GPC_D;
     d_set(GPC_SCL | GPC_SDA, 0);                 /* idle high */
     en_set(DS_OUT, DS_IN);
 }
 
 static void bus_close(void)                      /* the pins as found */
 {
-    DS_GPC_D = (DS_GPC_D & ~(GPC_SCL | GPC_SDA)) | (sv_d & (GPC_SCL | GPC_SDA));
-    DS_GPC_EN = (DS_GPC_EN & ~(DS_OUT | DS_IN)) | (sv_en & (DS_OUT | DS_IN));
+    GPC_D = (GPC_D & ~(GPC_SCL | GPC_SDA)) | (sv_d & (GPC_SCL | GPC_SDA));
+    GPC_EN = (GPC_EN & ~(DS_OUT | DS_IN)) | (sv_en & (DS_OUT | DS_IN));
 }
 
 static uint8_t bcd(uint8_t b) { return (b >> 4) * 10 + (b & 15); }

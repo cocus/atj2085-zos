@@ -9,8 +9,6 @@
 void pump(void);                        /* main.c */
 void wait_ticks(uint16_t t);
 
-SFR(GPC_EN, P_GPC_EN);
-SFR(GPC_D, P_GPC_D);
 
 #define GPC_EN_OUT    (GPC_SCL | GPC_SDA)               /* output enables (bits 0-2) */
 #define GPC_EN_IN     ((GPC_SCL | GPC_SDA) << 4)        /* input enables (bits 4-6) */

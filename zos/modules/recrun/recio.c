@@ -13,9 +13,6 @@
 #include "regs.h"
 #include "rec.h"
 
-SFR(R_IRQST, P_IRQST);
-SFR(R_HDR4, P_HDR4);
-SFR(R_HDR5, P_HDR5);
 
 recbuf_t rb;
 volatile uint8_t rec_on, pcm_w, pcm_full, pcm_rd, ee_pend, out_pend, stop_req;
@@ -48,14 +45,14 @@ static void give_pcm(void)                      /* a pending REQ_PCM with a full
 {
     ee_pend = 0;
     if (stop_req) {
-        R_HDR4 = PCM_STOP;
+        HDR4 = PCM_STOP;
     } else {
         dma_pcm();
         if (++pcm_rd == NCHUNK) pcm_rd = 0;
         pcm_full--;
-        R_HDR4 = 0;
+        HDR4 = 0;
     }
-    R_HDR5 = REP_PCM;
+    HDR5 = REP_PCM;
 }
 
 static void take_out(void)                      /* a pending REQ_OUT with a free queue slot */
@@ -63,16 +60,16 @@ static void take_out(void)                      /* a pending REQ_OUT with a free
     uint8_t last;
     out_pend = 0;
     dma_out();
-    last = R_HDR4 == OUT_HEADER;
+    last = HDR4 == OUT_HEADER;
     if (last) hdr_idx = q_head;
     if (++q_head == NQ) q_head = 0;
     q_count++;
-    if (!last) R_HDR5 = REP_OUT;                /* the header ends the session: no reply */
+    if (!last) HDR5 = REP_OUT;                /* the header ends the session: no reply */
 }
 
 void rec_dsp(uint8_t req)
 {
-    if (req == REQ_START) { R_HDR4 = 0; R_HDR5 = REP_START; }
+    if (req == REQ_START) { HDR4 = 0; HDR5 = REP_START; }
     else if (req == REQ_PCM) { ee_pend = 1; if (pcm_full || stop_req) give_pcm(); }
     else if (req == REQ_OUT) { out_pend = 1; if (q_count < NQ) take_out(); }
 }
@@ -104,10 +101,10 @@ void ftlw_idle(void)
 {
     uint8_t r;
     if (!rec_on) return;
-    if (R_IRQST & IRQ_DSP) {                   /* what the core ISR does (isr.s) */
-        r = R_HDR5;
-        r = R_HDR5;
-        R_IRQST = IRQ_DSP;
+    if (IRQST & IRQ_DSP) {                   /* what the core ISR does (isr.s) */
+        r = HDR5;
+        r = HDR5;
+        IRQST = IRQ_DSP;
         rec_dsp(r);
     }
     rec_service();

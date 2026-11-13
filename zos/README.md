@@ -19,6 +19,24 @@ the watchdog (kicked only from the main loop) reboots into the untouched stock f
 Emulator: `lisong_rebuild/tools/emurun.py build_v04/homebrew-launcher-v04.fw OUT "fakefs:DIR_WITH_ZOS_AP boot:320 key:NEXT key:PLAY:150 wait:40 key:K06 ..."`
 (the emulator's old button labels: K06 = PLAY, PLAY = MENU, NEXT = LEFT, PREV = RIGHT).
 
+## Hardware registers
+Every I/O port of the chip is declared **once**, in `targets/<target>/regs.h` (the `P_xxx` port
+number and the bit/value defines) and `targets/<target>/sfr.h` (the C register variable, same name
+without the `P_`: `P_PAVOL` -> `PAVOL`, `P_USB_STAT` -> `USB_STAT`, `P_DMA2_SA0` -> `DMA2_SA0`).
+- A module/core file just does `#include "regs.h"` and writes `PAVOL = 20; if (USB_STAT & USBST_VBUS) ...`.
+  **Never** declare `SFR(...)` / `__sfr` in a module: `tools/check_sfr.py` (run first by `build.py`)
+  fails the build when it finds one outside `regs.h`/`sfr.h` (the retired `attic/` is skipped).
+- A port that is missing is added in `regs.h` (`#define P_xxx 0x..`, plus its bit defines) and as one
+  `SFR(xxx, P_xxx);` line in `sfr.h`, with the access hazards (write-only, W1C, never-write bits)
+  in the comment next to it. Unused declarations cost no code.
+- Naming rule: register = port define minus `P_`; bit/field constants are `XXX_yyy` and never equal a register
+  name. Module-local aliases only where they carry meaning (e.g. PERFTEST `D_SA0` = DMA1 or DMA2 bank).
+- Variable-port access (a port number in a variable, e.g. the CDC console peek/poke) uses `port_in()/port_out()`
+  with the `P_xxx` numbers; assembly files use the `P_xxx` names from the generated `out/<target>/regs.inc`
+  (made from the `#define`s of `regs.h` only; `sfr.h` is C-only and ignored).
+- `ZOS_BUILD_TIME=YYYY-MM-DDTHH:MM` pins the build time stamped into `buildtime.h`, so two builds of the same
+  sources are byte-identical (used to verify pure refactors by comparing the md5 of every output).
+
 ## Design
 ### Memory (ATJ2085, Z80 64 KB)
 | range | use |

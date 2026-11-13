@@ -10,17 +10,6 @@
 #include "mp3.h"
 #include "mp3int.h"
 
-SFR(IRQST, P_IRQST);
-SFR(DSPCTL, P_DSPCTL);
-SFR(DSPVER, P_DSPVER);
-SFR(PLLCTL, P_PLLCTL);
-SFR(DACCTL, P_DACCTL);
-SFR(DACRATE, P_DACRATE);
-SFR(DACFIFO, P_DACFIFO);
-SFR(PAVOL, P_PAVOL);
-SFR(AICTL, P_AICTL);
-SFR(MIXER, P_MIXER);
-SFR(PACTL, P_PACTL);
 
 #define bs mp3_bs
 #define file mp3_file

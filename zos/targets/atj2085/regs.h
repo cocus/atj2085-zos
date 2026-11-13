@@ -2,7 +2,20 @@
  * datasheet v1.8 (DS), lisong_rebuild/analysis/{atj2085_hw,dma_clock,mp3_driver_spec,nand_ftl,
  * audio_hw,i2c,usb_msc}.md. Names: P_xxx = port number, XXX_yyy = bit / field / value of P_xxx.
  * build.py turns every numeric "#define NAME value" here into regs.inc for the assembler, so keep
- * values plain (hex/decimal, or (a | b) of names defined above). */
+ * values plain (hex/decimal, or (a | b) of names defined above).
+ *
+ * HARDWARE REGISTERS IN C (convention, enforced by tools/check_sfr.py in build.py):
+ *   every port P_xxx below is ALSO declared once as a C register variable named xxx (the port
+ *   define without the "P_": P_PAVOL -> PAVOL, P_USB_STAT -> USB_STAT), in sfr.h (included at the
+ *   end of this file). Modules and core code just #include "regs.h" and use the plain names
+ *   (PAVOL = 20; if (USB_STAT & USBST_VBUS) ...). They must NOT declare SFR(...) / __sfr themselves:
+ *   a new port is added HERE (P_xxx define + a line in sfr.h), never in a module. Keep a
+ *   module-local alias only when it carries meaning: #define KEY_PORT GPB_D.
+ *   Rule for clashes: bit/field/value constants keep their XXX_yyy names and never equal a register
+ *   name (a register name is exactly the P_ name minus the prefix); if a register name would
+ *   collide with another identifier, the register keeps the plain name and the other one is renamed.
+ *   Access hazards (write-only / W1C / never write) are noted at the register in sfr.h.
+ *   Assembly (.s) keeps using the P_xxx numbers from the generated regs.inc; sfr.h is C only. */
 #ifndef ATJ2085_REGS_H
 #define ATJ2085_REGS_H
 
@@ -96,6 +109,7 @@
 #define DMA_CMD_START   0x01    /*   start; reads 1 while running */
 
 /* ---- interrupts ---------------------------------------------------------------------------- */
+#define P_DMAIRQ        0x25    /* DMA status: bit 3 = DMA1 end (W1C); NEVER write bit 0 (DMA reset pulse) */
 #define P_IRQST         0x26    /* master status (DSP/key W1C) */
 #define P_IRQEN         0x27    /* master enable */
 #define IRQ_DSP         0x01
@@ -186,6 +200,7 @@
 #define RTC_TICK        0x02    /* 10 ms timer pending */
 #define RTC_HALFSEC     0x01
 #define P_WDT           0x4E
+#define P_DCDC          0x4F    /* DC-DC converter control/status (only read by zos: PERFTEST) */
 #define WDT_EN          0x80
 #define WDT_CLR         0x08
 #define WDT_176MS       0x00
@@ -409,4 +424,5 @@
 #elif !defined(REGS_NO_SFR)
 #define SFR(name, port) extern volatile unsigned char name   /* editors / static analysis */
 #endif
+#include "sfr.h"   /* every P_xxx as a C register variable xxx (C only; build.py ignores it) */
 #endif

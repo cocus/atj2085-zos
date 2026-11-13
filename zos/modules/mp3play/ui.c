@@ -14,8 +14,6 @@
 #include "ui.h"
 #include "regs.h"
 
-SFR(UI_BATT, P_BATT);
-SFR(UI_USBST, P_USB_STAT);
 
 char ti[ID3_W + 1], ar[ID3_W + 1];
 uint8_t volmode, scrub;
@@ -37,7 +35,7 @@ void batt(void)
 {
     uint8_t s = HAL_BATT, l, e = BATT_EMPTY_BAT, f = BATT_FULL_BAT, n, i;
     if (!ZCFG_BATT) return;
-    if (!(s & HAL_BATT_VALID)) s = (UI_BATT & BATT_LEVEL) | (UI_USBST & USBST_VBUS ? HAL_BATT_VBUS : 0);
+    if (!(s & HAL_BATT_VALID)) s = (BATT & BATT_LEVEL) | (USB_STAT & USBST_VBUS ? HAL_BATT_VBUS : 0);
     s &= HAL_BATT_LEVEL | HAL_BATT_VBUS;
     if (s == batt_shown) return;
     batt_shown = s;

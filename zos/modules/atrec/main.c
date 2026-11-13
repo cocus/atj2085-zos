@@ -18,23 +18,23 @@ static void adc_flush(void)
     ADCFIFO = 0x10;                         /* FIFO reset (bit2 = 0), right only */
     ADCFIFO = 0x54;                         /* release + sync (OS uses 0xCD with IRQ on; we poll) */
     ADCFIFO = 0x14;
-    while ((ADCFIFO & 0x20) && n++ < 40) { (void)ADCD; (void)ADCD; }
+    while ((ADCFIFO & 0x20) && n++ < 40) { (void)ADCDATA; (void)ADCDATA; }
 }
 
 static void adc_on(uint8_t fm)
 {
-    ADC2 = (ADC2 & 0x1C) | (fm ? 1 : 0);    /* source (00 mic, 01 FM), fs = 8 kHz (000) */
+    MIXER = (MIXER & 0x1C) | (fm ? 1 : 0);    /* source (00 mic, 01 FM), fs = 8 kHz (000) */
     ADCTUNE = (ADCTUNE & 0xFC) | 3;         /* input gain +3 dB (chip default) */
     ADCBUS = 0;                             /* 16 bit */
-    PD2 |= 0x80;                            /* what the OS ADC_Enable does */
-    PD9 &= 0xFC;
+    ADCPD2 |= 0x80;                            /* what the OS ADC_Enable does */
+    ADCPD9 &= 0xFC;
     if (fm) {
         ADCMOD = 0x7A;                      /* AI_Enable fmin */
-        AING = (AING & 0xF8) | 5;           /* FM gain 0 dB (stock FMRADIO) */
-        ADC1 = 0x88 | 0x10 | (ADC1 & 7);    /* ADC on + dither + FM stage */
+        AIGAIN = (AIGAIN & 0xF8) | 5;           /* FM gain 0 dB (stock FMRADIO) */
+        AICTL = 0x88 | 0x10 | (AICTL & 7);    /* ADC on + dither + FM stage */
     } else {
         ADCMOD = 0xDA;                      /* AI_Enable micin */
-        ADC1 = 0x88 | 0x40 | mic_gain;
+        AICTL = 0x88 | 0x40 | mic_gain;
     }
     wait_ticks(10);
     adc_flush();
@@ -42,8 +42,8 @@ static void adc_on(uint8_t fm)
 
 static void adc_off(void)
 {
-    PD2 &= 0x7F;                            /* OS ADC_Disable */
-    ADC1 &= 0x0F;
+    ADCPD2 &= 0x7F;                            /* OS ADC_Disable */
+    AICTL &= 0x0F;
     ADCFIFO = 0x48;
 }
 
@@ -59,22 +59,22 @@ static void adc_off(void)
 static uint8_t sv_en, sv_dat;
 static void dly(void) { volatile uint8_t i; for (i = 4; i; i--) ; }
 static void en_set(uint8_t set, uint8_t clr) { GPC_EN = ((GPC_EN & 0x77) | set) & ~clr & 0x77; }
-static void dat_set(uint8_t set, uint8_t clr) { GPC_DATA = ((GPC_DATA & 0x07) | set) & ~clr & 0x07; }
+static void dat_set(uint8_t set, uint8_t clr) { GPC_D = ((GPC_D & 0x07) | set) & ~clr & 0x07; }
 static void scl(uint8_t v) { if (v) dat_set(SCL, 0); else dat_set(0, SCL); }
 static void sda(uint8_t v) { if (v) dat_set(SDA, 0); else dat_set(0, SDA); en_set(SDA, SDA_IE); }
 static void sda_release(void) { en_set(SDA_IE, SDA); }
-static uint8_t sda_read(void) { return (GPC_DATA & SDA) ? 1 : 0; }
+static uint8_t sda_read(void) { return (GPC_D & SDA) ? 1 : 0; }
 
 static void bus_open(void)
 {
-    sv_en = GPC_EN & EN_MASK; sv_dat = GPC_DATA & DAT_MASK;
+    sv_en = GPC_EN & EN_MASK; sv_dat = GPC_D & DAT_MASK;
     dat_set(SCL | SDA, 0);
     en_set(SCL | SDA, SCL_IE | SDA_IE);
 }
 static void bus_close(void)
 {
-    uint8_t d = GPC_DATA & 0x07, e = GPC_EN & 0x77;
-    GPC_DATA = (d & ~DAT_MASK) | sv_dat;
+    uint8_t d = GPC_D & 0x07, e = GPC_EN & 0x77;
+    GPC_D = (d & ~DAT_MASK) | sv_dat;
     GPC_EN = (e & ~EN_MASK) | sv_en;
 }
 static void i2c_start(void) { sda(1); scl(1); dly(); sda(0); dly(); scl(0); dly(); }
@@ -244,7 +244,7 @@ static void play_back(uint8_t fm)
         redraw = 1;
     }
     dac_off();
-    ADC2 = (ADC2 & 0xE3);
+    MIXER = (MIXER & 0xE3);
     if (fm) fm_mon_on();
     adc_flush();
 }
@@ -294,7 +294,7 @@ static void src_screen(uint8_t fm)
 
     while (!quit) {
         if (ADCFIFO & 0x20) {
-            hi = ADCD; lo = ADCD;
+            hi = ADCDATA; lo = ADCDATA;
             s = (int16_t)(((uint16_t)hi << 8) | lo);
             cnt++; spin = 0; nodata = 0;
             raw = (uint16_t)s;
@@ -356,7 +356,7 @@ static void src_screen(uint8_t fm)
                 tea_tune(f10, 0); draw_fm();
             } else {
                 mic_gain = (key == KEY_LEFT) ? (mic_gain ? mic_gain - 1 : 7) : ((mic_gain + 1) & 7);
-                ADC1 = (ADC1 & 0xF8) | mic_gain;
+                AICTL = (AICTL & 0xF8) | mic_gain;
                 draw_mic();
             }
         }
